@@ -49,8 +49,9 @@ default local database uses the `erbas_dev` database, the `erbas` user, and the
 `erbas_local_only` password. These values are local development defaults only,
 not production credentials. Override them with `ERBAS_DB_NAME`,
 `ERBAS_DB_USER`, and `ERBAS_DB_PASSWORD` when needed. The application is
-published on host port 8080 by default; override it with `ERBAS_APP_PORT` if
-that port is already in use.
+published on host port 48080 by default and bound to loopback only. The
+application continues listening on container port 8080. Override the host
+port with `ERBAS_APP_PORT` if needed.
 
 Flyway applies versioned migrations from
 `src/main/resources/db/migration` when the application starts. The current
@@ -63,8 +64,7 @@ remove only that project's containers, network, and volume after verification:
 ```bash
 export ERBAS_APP_PORT=48080
 docker compose -p erbas-task2-verify up --detach --build app
-docker compose -p erbas-task2-verify exec -T app \
-  sh -c 'until curl --fail --silent http://localhost:8080/actuator/health; do sleep 2; done'
+until curl --fail --silent http://127.0.0.1:48080/actuator/health; do sleep 2; done
 docker compose -p erbas-task2-verify exec -T postgres \
   psql -U erbas -d erbas_dev -v ON_ERROR_STOP=1 \
   -c "SELECT version, success FROM flyway_schema_history WHERE version = '1' AND success;"
@@ -76,4 +76,5 @@ development Compose project. The regular `docker compose up` workflow keeps
 the local PostgreSQL volume for development.
 
 The application health endpoint is available at
-`http://localhost:8080/actuator/health`.
+`http://localhost:48080/actuator/health` by default. The container endpoint
+remains `http://localhost:8080/actuator/health` for internal checks.

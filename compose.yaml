@@ -33,7 +33,7 @@ services:
       ERBAS_DATASOURCE_USERNAME: ${ERBAS_DB_USER:-erbas}
       ERBAS_DATASOURCE_PASSWORD: ${ERBAS_DB_PASSWORD:-erbas_local_only}
     ports:
-      - "${ERBAS_APP_PORT:-8080}:8080"
+      - "127.0.0.1:${ERBAS_APP_PORT:-48080}:8080"
     read_only: true
     tmpfs:
       - /tmp

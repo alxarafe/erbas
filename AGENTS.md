@@ -112,6 +112,30 @@ Application images must:
 Keep development, unit testing, integration testing, deployed API testing, and
 local verified deployment as separate concerns and environments.
 
+## Docker port policy
+
+Application containers should keep conventional internal service ports, but
+host ports must not be assumed to be available. ERBAS uses container port 8080
+and publishes it on host port 48080 by default, bound to loopback only. The host
+port is configurable through `ERBAS_APP_PORT`. Ephemeral verification and CI
+should avoid fixed host ports when they are unnecessary; when host HTTP access
+is required, dynamically assigned host ports should be preferred and discovered
+programmatically. Infrastructure services such as PostgreSQL must not publish
+host ports unless host access is explicitly required.
+
+## Pragmatic hexagonal architecture
+
+ERBAS follows a pragmatic hexagonal architecture that emerges from real use
+cases. Domain and application logic must not depend directly on Spring, Docker,
+Flyway, PostgreSQL, HTTP, or other infrastructure technologies. Infrastructure
+should remain replaceable behind appropriate boundaries when actual use cases
+require them. Controllers, persistence implementations, and external
+integrations belong to adapters or infrastructure rather than business logic.
+Do not create speculative ports, adapters, repositories, domain entities,
+services, or empty package structures before a real use case needs them. Do not
+create architecture for visual package symmetry; avoid both framework-driven
+domain design and unnecessary abstraction.
+
 ## Database isolation
 
 Never use the development database for destructive tests. Maintain clearly
@@ -187,4 +211,3 @@ Maven Wrapper, JUnit context test, multi-stage runtime image, non-privileged
 execution, and Actuator health check. PostgreSQL, migrations, authentication,
 authorization, Bruno collections, and business modules require separate tasks
 and separate human approval.
-
