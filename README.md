@@ -1,5 +1,10 @@
 # ERBAS
 
+[![CI](https://github.com/alxarafe/erbas/actions/workflows/ci.yml/badge.svg)](https://github.com/alxarafe/erbas/actions/workflows/ci.yml)
+![Java 25](https://img.shields.io/badge/Java-25-orange?style=flat-square)
+![Spring Boot 4.1.1](https://img.shields.io/badge/Spring%20Boot-4.1.1-6DB33F?style=flat-square)
+![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square)
+
 ERBAS is a Java-based laboratory for designing and building an API-only ERP core.
 
 ## Current baseline
