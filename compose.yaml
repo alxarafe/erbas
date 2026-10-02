@@ -1,0 +1,16 @@
+services:
+  build:
+    build:
+      context: .
+      target: build
+    command: ./mvnw --batch-mode --no-transfer-progress clean verify
+
+  app:
+    build:
+      context: .
+      target: runtime
+    ports:
+      - "8080:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
