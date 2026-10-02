@@ -77,9 +77,3 @@ the local PostgreSQL volume for development.
 
 The application health endpoint is available at
 `http://localhost:8080/actuator/health`.
-
-## Documentation language
-
-Repository comments and public documentation are written in English. Detailed
-Spanish working documentation belongs under the local `private/` directory,
-which is excluded from version control and Docker build context.
