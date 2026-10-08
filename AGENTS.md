@@ -117,7 +117,9 @@ local verified deployment as separate concerns and environments.
 Application containers should keep conventional internal service ports, but
 host ports must not be assumed to be available. ERBAS uses container port 8080
 and publishes it on host port 48080 by default, bound to loopback only. The host
-port is configurable through `ERBAS_APP_PORT`. Ephemeral verification and CI
+port is configurable through `ERBAS_JAVA_PORT`. Follow the shared convention in
+`erbas-contract/docs/development-ports.md`; these ports are infrastructure, not
+HTTP contract requirements. Ephemeral verification and CI
 should avoid fixed host ports when they are unnecessary; when host HTTP access
 is required, dynamically assigned host ports should be preferred and discovered
 programmatically. Infrastructure services such as PostgreSQL must not publish

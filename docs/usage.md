@@ -27,11 +27,18 @@ docker compose up --build app
 ```
 
 Development uses `compose.yaml`, a persistent PostgreSQL volume and container
-port 8080 published at `127.0.0.1:48080`. Configure `ERBAS_APP_PORT` to change
+port 8080 published at `127.0.0.1:48080`. Configure `ERBAS_JAVA_PORT` to change
 the host port. PostgreSQL has no host port. Development defaults are database
 `erbas_dev`, user `erbas`, password `erbas_local_only`; override them with
 `ERBAS_DB_NAME`, `ERBAS_DB_USER`, `ERBAS_DB_PASSWORD`. They are local defaults,
 not production credentials.
+
+The health URL is `http://127.0.0.1:48080/health`. For example,
+`ERBAS_JAVA_PORT=49080 docker compose up --build app` publishes the same internal
+8080 on loopback host port 49080. `ERBAS_APP_PORT` is no longer used. See the
+[shared port convention](https://github.com/alxarafe/erbas-contract/blob/main/docs/development-ports.md).
+The CI overlay `docker/compose.ci.yaml` removes the app's host publication;
+CI and complete isolated validation access services inside Docker.
 
 Flyway reads `src/main/resources/db/migration` at startup. V1 creates only
 `erbas_persistence_marker` and inserts marker 1. No business schema, ORM, JPA or
