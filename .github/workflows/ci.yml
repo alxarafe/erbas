@@ -11,6 +11,8 @@ jobs:
   docker-build-and-test:
     name: Docker build and test
     runs-on: ubuntu-24.04
+    env:
+      COMPOSE_FILE: compose.yaml:docker/compose.ci.yaml
 
     steps:
       - name: Check out repository

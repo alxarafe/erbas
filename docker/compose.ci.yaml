@@ -1,0 +1,4 @@
+# CI checks the API inside Docker and must not reserve a development host port.
+services:
+  app:
+    ports: !reset []
