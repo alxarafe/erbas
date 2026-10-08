@@ -206,8 +206,39 @@ boundary and must not be used to store secrets.
 
 ## Current repository baseline
 
-The initial approved baseline provides a minimal Spring Boot application,
-Maven Wrapper, JUnit context test, multi-stage runtime image, non-privileged
-execution, and Actuator health check. PostgreSQL, migrations, authentication,
-authorization, Bruno collections, and business modules require separate tasks
-and separate human approval.
+The approved baseline includes Spring Boot, Maven Wrapper, a context test,
+multistage image, non-privileged execution, Actuator, PostgreSQL, JDBC and Flyway's
+infrastructure marker. CONTRACT-001B adds shared liveness and isolated validation.
+Authentication, authorization and business modules require separate approval.
+
+## Shared contract and validation
+
+`alxarafe/erbas-contract` owns the external API: OpenAPI is formal specification,
+and its single Bruno collection is executable conformance. This backend cannot
+change it unilaterally or duplicate the collection. Never add implementation
+branches to the shared contract.
+
+Declare the implemented revision in `contract.revision`. The current commit is
+unpublished, not a released version. Require an explicit directory and unpublished
+checkout opt-in. Verify identity, exact HEAD and tracked/nonignored cleanliness
+before every shared test call. Allow ignored files and preserve them. Never pull,
+checkout or modify the supplied contract repository.
+
+`./bin/check` is the sole complete backend validation entry point: native tests,
+Java integration with clean PostgreSQL, final image, real migrations, Actuator,
+and shared Bruno with a different clean PostgreSQL. Keep bounded waits, nonzero
+failure propagation, exact ownership and cleanup on success and failure. Fault
+controls belong only to host verification, never production application behavior.
+
+Failed conformance must block publication/deployment. CONTRACT-002 will integrate
+this authority into CI; current general CI does not claim shared conformance.
+Do not commit, push, create PRs, merge, tag, release, publish or deploy without
+express authorization. Preserve unrelated changes and resources.
+
+## Public documentation
+
+Keep README a brief public landing page linking every ERBAS repository. Detailed
+operations belong in docs, indexed by docs/README.md, without duplicate manuals.
+Public documentation is in English. Badges must reflect verifiable facts or real
+workflows. CI, local conformance and contractual revision are different facts;
+keep links and states current and never use a static green conformance badge.

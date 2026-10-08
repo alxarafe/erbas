@@ -1,0 +1,75 @@
+# Standalone validation infrastructure; never overlay development Compose.
+x-owned: &owned
+  labels:
+    org.erbas.validation.run: ${ERBAS_CHECK_RUN:?Set by bin/check}
+
+x-builder: &builder
+  <<: *owned
+  image: ${ERBAS_CHECK_RUN:?}-build
+  build:
+    context: ${ERBAS_CHECK_ROOT:?Set by bin/check}
+    target: build
+
+x-postgres: &postgres
+  <<: *owned
+  image: postgres:18.6@sha256:86c951e05bf56c93d95d397747fb8820ac76cc3bedb78f43abd83eedbe3666ae
+  environment:
+    POSTGRES_DB: erbas_validation
+    POSTGRES_USER: erbas_validation
+    POSTGRES_PASSWORD: ephemeral_validation_only
+  healthcheck:
+    test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+    interval: 2s
+    timeout: 3s
+    retries: 30
+
+services:
+  native-tests:
+    <<: *builder
+    command: ./mvnw --batch-mode --no-transfer-progress clean verify
+
+  native-integration:
+    <<: *builder
+    environment:
+      ERBAS_DATASOURCE_URL: jdbc:postgresql://postgres-native:5432/erbas_validation
+      ERBAS_DATASOURCE_USERNAME: erbas_validation
+      ERBAS_DATASOURCE_PASSWORD: ephemeral_validation_only
+    command: ./mvnw --batch-mode --no-transfer-progress -Dtest=HealthIntegrationIT -Dsurefire.failIfNoSpecifiedTests=true test
+
+  postgres-native:
+    <<: *postgres
+    volumes:
+      - native_data:/var/lib/postgresql
+
+  postgres-api:
+    <<: *postgres
+    volumes:
+      - api_data:/var/lib/postgresql
+
+  app:
+    <<: *owned
+    image: ${ERBAS_CHECK_RUN:?}-app
+    build:
+      context: ${ERBAS_CHECK_ROOT:?}
+      target: runtime
+    environment:
+      ERBAS_DATASOURCE_URL: jdbc:postgresql://postgres-api:5432/erbas_validation
+      ERBAS_DATASOURCE_USERNAME: erbas_validation
+      ERBAS_DATASOURCE_PASSWORD: ephemeral_validation_only
+    read_only: true
+    tmpfs:
+      - /tmp
+
+networks:
+  default:
+    name: ${ERBAS_CHECK_RUN:?}-network
+    labels:
+      org.erbas.validation.run: ${ERBAS_CHECK_RUN:?}
+
+volumes:
+  native_data:
+    labels:
+      org.erbas.validation.run: ${ERBAS_CHECK_RUN:?}
+  api_data:
+    labels:
+      org.erbas.validation.run: ${ERBAS_CHECK_RUN:?}

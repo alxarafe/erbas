@@ -1,0 +1,268 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+scenario=normal
+if [[ $# -eq 2 && "$1" == --exercise-failure && "$2" =~ ^(contract|startup-timeout)$ ]]; then
+    scenario="$2"
+elif [[ $# -ne 0 ]]; then
+    echo 'Usage: ./bin/check [--exercise-failure contract|startup-timeout]' >&2
+    exit 2
+fi
+for tool in git docker timeout; do
+    command -v "$tool" >/dev/null || { echo "ERROR: missing host tool: $tool" >&2; exit 2; }
+done
+bounded() { local seconds="$1"; shift; timeout --kill-after=10s "$seconds" "$@"; }
+
+# An empty result is evidence only after a successful query. Never put a Docker
+# query inside a declaration, test, pipeline or unchecked loop expansion.
+docker_query() {
+    local seconds="$1" description="$2" query_code
+    shift 2
+    if query_result="$(bounded "$seconds" "$@")"; then
+        query_code=0
+    else
+        query_code=$?
+    fi
+    if [[ "$query_code" != 0 ]]; then
+        echo "ERROR: Docker query failed: $description (exit $query_code)." >&2
+        return "$query_code"
+    fi
+}
+docker_query 15 'Compose availability' docker compose version
+
+check_contract() {
+    [[ "${ERBAS_CONTRACT_ALLOW_UNRELEASED:-}" == 1 ]] || {
+        echo 'ERROR: set ERBAS_CONTRACT_ALLOW_UNRELEASED=1 for the pinned unpublished revision.' >&2
+        return 2
+    }
+    [[ -n "${ERBAS_CONTRACT_DIR:-}" && -d "$ERBAS_CONTRACT_DIR" ]] || {
+        echo 'ERROR: ERBAS_CONTRACT_DIR must identify an explicit contract checkout.' >&2
+        return 2
+    }
+    local directory revision origin checkout_status
+    directory="$(cd "$ERBAS_CONTRACT_DIR" && pwd -P)"
+    [[ "$(git --no-optional-locks -C "$directory" rev-parse --show-toplevel)" == "$directory" ]] || {
+        echo 'ERROR: use the contract repository root.' >&2; return 2;
+    }
+    origin="$(git -C "$directory" remote get-url origin)"
+    case "$origin" in
+        git@github.com:alxarafe/erbas-contract.git|https://github.com/alxarafe/erbas-contract|https://github.com/alxarafe/erbas-contract.git|ssh://git@github.com/alxarafe/erbas-contract.git) ;;
+        *) echo 'ERROR: unexpected contract origin.' >&2; return 2 ;;
+    esac
+    revision="$(cat "$root/contract.revision")"
+    [[ "$revision" =~ ^[0-9a-f]{40}$ && "$(git -C "$directory" rev-parse HEAD)" == "$revision" ]] || {
+        echo 'ERROR: contract checkout does not match contract.revision.' >&2; return 2;
+    }
+    checkout_status="$(git --no-optional-locks -C "$directory" status --porcelain=v1 --untracked-files=all)" || return 2
+    [[ -z "$checkout_status" ]] || {
+        echo 'ERROR: contract checkout has tracked changes or nonignored untracked files.' >&2; return 2;
+    }
+    [[ -x "$directory/bin/test" ]] || { echo 'ERROR: missing public contract runner.' >&2; return 2; }
+    contract_dir="$directory"
+    echo "CONTRACT_REVISION=$revision"
+}
+check_contract
+echo 'CONTRACT_PREFLIGHT=passed PHASE=initial'
+
+export ERBAS_CHECK_ROOT="$root"
+export ERBAS_CHECK_RUN="erbas-check-${BASHPID}-${RANDOM}-${RANDOM}"
+project="$ERBAS_CHECK_RUN"
+network="${project}-network"
+readonly project network
+unset COMPOSE_FILE COMPOSE_PROJECT_NAME COMPOSE_PROFILES COMPOSE_ENV_FILES COMPOSE_REMOVE_ORPHANS
+compose=(docker compose --env-file /dev/null --project-name "$project"
+    --file "$root/docker/compose.validation.yaml")
+
+inventory() {
+    local kind="$1"
+    local options=(--quiet)
+    [[ "$kind" != container ]] || options+=(--all)
+    docker_query 15 "$kind inventory for $project" docker "$kind" ls "${options[@]}" \
+        --filter "label=com.docker.compose.project=$project"
+}
+
+# Refuse collisions before enabling cleanup or creating anything.
+for kind in container network volume; do
+    inventory "$kind"
+    [[ -z "$query_result" ]] || { echo 'ERROR: validation project collision.' >&2; exit 2; }
+done
+for image in "${project}-build" "${project}-app"; do
+    docker_query 15 "image collision check for $image" docker image ls --quiet "$image"
+    [[ -z "$query_result" ]] || { echo 'ERROR: validation image collision.' >&2; exit 2; }
+done
+
+cleanup() {
+    local code=$? kind id label remaining containers='' safe=1 cleanup_code=0
+    trap - EXIT INT TERM
+    # Check ownership before down can remove any project resources.
+    for kind in container network volume; do
+        if inventory "$kind"; then
+            remaining="$query_result"
+        else
+            safe=0
+            cleanup_code=1
+            continue
+        fi
+        [[ "$kind" != container ]] || containers="$remaining"
+        for id in $remaining; do
+            if [[ "$kind" == container ]]; then
+                label='{{ index .Config.Labels "org.erbas.validation.run" }}'
+            else
+                label='{{ index .Labels "org.erbas.validation.run" }}'
+            fi
+            if docker_query 15 "$kind ownership for $id" docker "$kind" inspect --format "$label" "$id"; then
+                if [[ "$query_result" == "$project" ]]; then continue; fi
+                echo "ERROR: refusing cleanup of an unowned $kind: $id" >&2
+            fi
+            safe=0
+            cleanup_code=1
+        done
+    done
+    if [[ "$safe" == 1 ]]; then
+        for id in $containers; do
+            if docker_query 15 "paused state for $id" docker container inspect --format '{{.State.Paused}}' "$id"; then
+                if [[ "$query_result" == true ]]; then
+                    if bounded 15 docker unpause "$id" >/dev/null; then :; else safe=0; cleanup_code=1; fi
+                elif [[ "$query_result" != false ]]; then
+                    echo "ERROR: unknown paused state for $id." >&2
+                    safe=0
+                    cleanup_code=1
+                fi
+            else
+                safe=0
+                cleanup_code=1
+            fi
+        done
+    fi
+    if [[ "$safe" == 1 ]]; then
+        if bounded 90 "${compose[@]}" down --volumes --remove-orphans --timeout 10; then :; else cleanup_code=1; fi
+        for image in "${project}-build" "${project}-app"; do
+            if docker_query 15 "image removal inventory for $image" docker image ls --quiet "$image"; then
+                if [[ -n "$query_result" ]]; then
+                    if bounded 30 docker image rm "$image" >/dev/null; then :; else cleanup_code=1; fi
+                fi
+            else
+                cleanup_code=1
+            fi
+        done
+    else
+        cleanup_code=1
+    fi
+    for kind in container network volume; do
+        if inventory "$kind"; then
+            if [[ -z "$query_result" ]]; then continue; fi
+            echo "ERROR: unable to establish zero remaining $kind resources for $project." >&2
+        fi
+        cleanup_code=1
+    done
+    for image in "${project}-build" "${project}-app"; do
+        if docker_query 15 "final image inventory for $image" docker image ls --quiet "$image"; then
+            if [[ -z "$query_result" ]]; then continue; fi
+            echo "ERROR: temporary image tag remains: $image." >&2
+        fi
+        cleanup_code=1
+    done
+    if [[ "$cleanup_code" == 0 ]]; then
+        echo "CLEANUP_STATUS=passed CLEANUP_CODE=0 RUN_ID=$project"
+    else
+        echo "CLEANUP_STATUS=failed CLEANUP_CODE=$cleanup_code RUN_ID=$project"
+        [[ "$code" != 0 ]] || code="$cleanup_code"
+    fi
+    if [[ "$code" == 0 ]]; then echo "RESULT=passed RUN_ID=$project"; fi
+    echo "CLEANUP_EXIT=$code RUN_ID=$project"
+    echo "CHECK_EXIT=$code RUN_ID=$project"
+    exit "$code"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+echo "RUN_ID=$project NETWORK=$network SCENARIO=$scenario"
+
+bounded 30 "${compose[@]}" config --quiet
+bounded 900 "${compose[@]}" build native-tests app
+# Always execute native tests in a fresh container, even with cached image layers.
+bounded 900 "${compose[@]}" run --rm --no-deps native-tests
+bounded 120 "${compose[@]}" up --detach --wait --wait-timeout 110 postgres-native postgres-api
+
+assert_empty() {
+    local service="$1" count
+    docker_query 15 "initial table count for $service" "${compose[@]}" exec -T "$service" psql -U erbas_validation -d erbas_validation -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';"
+    count="$query_result"
+    [[ "$count" == 0 ]] || { echo "ERROR: $service was not empty before migration." >&2; return 1; }
+    echo "EMPTY_DATABASE=$service TABLES=$count"
+}
+assert_empty postgres-native
+assert_empty postgres-api
+bounded 900 "${compose[@]}" run --rm --no-deps native-integration
+bounded 30 "${compose[@]}" up --detach --no-deps app
+docker_query 15 'application container identity' "${compose[@]}" ps --all --quiet app
+app_id="$query_result"
+[[ -n "$app_id" ]] || { echo 'ERROR: application container missing.' >&2; exit 1; }
+startup_limit=120
+if [[ "$scenario" == startup-timeout ]]; then
+    bounded 15 docker pause "$app_id" >/dev/null
+    startup_limit=5
+fi
+started=$SECONDS
+while :; do
+    docker_query 15 "application readiness for $app_id" docker container inspect --format '{{.State.Status}} {{.State.Health.Status}}' "$app_id"
+    state="$query_result"
+    [[ "$state" == 'running healthy' ]] && break
+    [[ "$state" != exited* && "$state" != dead* ]] || { echo "ERROR: application exited: $state" >&2; exit 1; }
+    if (( SECONDS - started >= startup_limit )); then
+        echo "ERROR: startup timeout after ${startup_limit}s." >&2
+        exit 124
+    fi
+    sleep 1
+done
+docker_query 15 'Actuator HTTP response' "${compose[@]}" exec -T app curl --silent --show-error --max-time 5 \
+    --max-redirs 0 --write-out '\n%{http_code}' -H 'Accept: application/json' http://localhost:8080/actuator/health
+actuator_http="${query_result##*$'\n'}"
+printf '%s\n' "${query_result%$'\n'*}"
+echo "ACTUATOR_HTTP=$actuator_http"
+[[ "$actuator_http" == 200 ]] || { echo "ERROR: Actuator returned HTTP $actuator_http, expected 200." >&2; exit 1; }
+bounded 15 "${compose[@]}" exec -T postgres-api psql -U erbas_validation -d erbas_validation -v ON_ERROR_STOP=1 <<'SQL'
+DO $$ BEGIN
+    IF (SELECT count(*) FROM flyway_schema_history WHERE version = '1' AND success) <> 1
+       OR EXISTS (SELECT 1 FROM flyway_schema_history WHERE NOT success)
+       OR (SELECT count(*) FROM erbas_persistence_marker WHERE marker_id = 1) <> 1 THEN
+        RAISE EXCEPTION 'Missing successful migration or infrastructure marker';
+    END IF;
+END $$;
+SELECT version, success FROM flyway_schema_history WHERE version = '1';
+SELECT marker_id FROM erbas_persistence_marker;
+SQL
+
+if [[ "$scenario" == contract ]]; then
+    bounded 30 "${compose[@]}" stop --timeout 10 app
+    echo 'EXERCISE=contract-connection-failure'
+fi
+run_contract() {
+    local phase="$1" runner_code
+    check_contract
+    echo "CONTRACT_PREFLIGHT=passed PHASE=$phase"
+    echo "CONTRACT_RUN=start PHASE=$phase"
+    if bounded 600 "$contract_dir/bin/test" --network "$network" http://app:8080; then
+        runner_code=0
+    else
+        runner_code=$?
+    fi
+    if [[ "$runner_code" == 0 ]]; then
+        echo "CONTRACT_RUN=success PHASE=$phase EXIT=$runner_code"
+    else
+        echo "CONTRACT_RUN=failure PHASE=$phase EXIT=$runner_code"
+        echo "FAILURE_SOURCE=contract-runner PHASE=$phase EXIT=$runner_code"
+        exit "$runner_code"
+    fi
+}
+run_contract database-up
+bounded 30 "${compose[@]}" stop --timeout 10 postgres-api
+docker_query 15 'API PostgreSQL container identity' "${compose[@]}" ps --all --quiet postgres-api
+postgres_id="$query_result"
+docker_query 15 "API PostgreSQL stopped state for $postgres_id" docker container inspect --format '{{.State.Running}}' "$postgres_id"
+[[ "$query_result" == false ]] || {
+    echo 'ERROR: API PostgreSQL is still running.' >&2; exit 1;
+}
+echo 'API_POSTGRES_RUNNING=false'
+run_contract database-down

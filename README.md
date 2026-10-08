@@ -1,80 +1,48 @@
-# ERBAS
+# ERBAS Java
+
+> One shared API contract. An independent Java implementation.
 
 [![CI](https://github.com/alxarafe/erbas/actions/workflows/ci.yml/badge.svg)](https://github.com/alxarafe/erbas/actions/workflows/ci.yml)
-![Java 25](https://img.shields.io/badge/Java-25-orange?style=flat-square)
-![Spring Boot 4.1.1](https://img.shields.io/badge/Spring%20Boot-4.1.1-6DB33F?style=flat-square)
-![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square)
 
-ERBAS is a Java-based laboratory for designing and building an API-only ERP core.
+ERBAS Java is the Java/Spring Boot implementation of an API-only ERP laboratory.
+Java and .NET converge on a neutral contract so consumers can use either stack.
 
-## Current baseline
+| Repository | Responsibility |
+| --- | --- |
+| [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and the sole Bruno collection |
+| [erbas](https://github.com/alxarafe/erbas) | Java implementation with PostgreSQL and Flyway |
+| [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | Independent .NET implementation; conformance pending |
+| [erbas-client](https://github.com/alxarafe/erbas-client) | Planned shared Angular consumer |
 
-The repository currently contains the reproducible Docker baseline and a
-minimal PostgreSQL persistence foundation:
+The scope is a persistence foundation and `GET /health` returning
+`{"status":"ok"}`: HTTP process liveness after startup. `/actuator/health`
+remains Spring's operational probe. No business modules or authentication exist.
 
-- Java 25;
-- Spring Boot 4.1.1;
-- Maven 3.10.0 through Maven Wrapper;
-- JUnit context test;
-- a multi-stage application image with a non-privileged runtime user;
-- a Spring Boot Actuator health endpoint;
-- PostgreSQL 18.6 started by Docker Compose;
-- JDBC connectivity and Flyway versioned migrations;
-- a minimal infrastructure-only migration marker.
+## Get started
 
-No ERP business schema, ORM, JPA, Hibernate, authentication, authorization, or
-Bruno API collection is included in this baseline.
-
-## Host requirements
-
-Only Git, Docker, Docker Compose, and Codex are required on the host. Java and
-Maven are executed inside Docker.
-
-## Build and test
-
-Run the complete build and unit test suite through Docker Compose:
+Build and run native tests with Docker:
 
 ```bash
 docker compose run --rm build
 ```
 
-Build and start the application image:
+Run complete isolated validation against the explicitly supplied contract:
 
 ```bash
-docker compose up --build app
+ERBAS_CONTRACT_DIR=/path/to/checkout/erbas-contract \
+ERBAS_CONTRACT_ALLOW_UNRELEASED=1 \
+./bin/check
 ```
 
-The `app` service waits for the PostgreSQL health check before starting. The
-default local database uses the `erbas_dev` database, the `erbas` user, and the
-`erbas_local_only` password. These values are local development defaults only,
-not production credentials. Override them with `ERBAS_DB_NAME`,
-`ERBAS_DB_USER`, and `ERBAS_DB_PASSWORD` when needed. The application is
-published on host port 48080 by default and bound to loopback only. The
-application continues listening on container port 8080. Override the host
-port with `ERBAS_APP_PORT` if needed.
+No host Java, Maven or Bruno is needed. See [usage](docs/usage.md).
 
-Flyway applies versioned migrations from
-`src/main/resources/db/migration` when the application starts. The current
-`V1__create_persistence_marker.sql` migration creates only the infrastructure
-table `erbas_persistence_marker`; no ERP business tables exist yet.
+## Status and documentation
 
-To verify a fresh PostgreSQL database, use a dedicated Compose project name and
-remove only that project's containers, network, and volume after verification:
+The [declared revision](contract.revision) is an unpublished commit; there is no
+contract release or `v0.1.0` tag. [Local evidence](docs/verification/contract-001b.md)
+is separate from the existing general CI badge, which does not run shared Bruno.
 
-```bash
-export ERBAS_APP_PORT=48080
-docker compose -p erbas-task2-verify up --detach --build app
-until curl --fail --silent http://127.0.0.1:48080/actuator/health; do sleep 2; done
-docker compose -p erbas-task2-verify exec -T postgres \
-  psql -U erbas -d erbas_dev -v ON_ERROR_STOP=1 \
-  -c "SELECT version, success FROM flyway_schema_history WHERE version = '1' AND success;"
-docker compose -p erbas-task2-verify down --volumes --remove-orphans
-```
-
-The verification project name is explicit so its cleanup cannot target the
-development Compose project. The regular `docker compose up` workflow keeps
-the local PostgreSQL volume for development.
-
-The application health endpoint is available at
-`http://localhost:48080/actuator/health` by default. The container endpoint
-remains `http://localhost:8080/actuator/health` for internal checks.
+Browse the [documentation index](docs/README.md),
+[integration decision](docs/decisions/0001-java-health-conformance.md) and
+[working agreement](AGENTS.md). CONTRACT-002 will add mandatory CI conformance
+and deliberate consumption of a published contract version.
