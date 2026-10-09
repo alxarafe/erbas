@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+cd "$root"
+[[ $# -eq 0 ]] || { echo 'Usage: ./bin/down (persistent volumes are always retained)' >&2; exit 2; }
+for tool in docker timeout; do
+    command -v "$tool" >/dev/null || { echo "ERROR: missing host tool: $tool" >&2; exit 2; }
+done
+if timeout --kill-after=10s 90 docker compose down --timeout 10; then
+    echo 'Java development services stopped; persistent volumes retained.'
+else
+    code=$?
+    echo "ERROR: development shutdown failed (exit $code)." >&2
+    exit "$code"
+fi

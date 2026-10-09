@@ -22,13 +22,20 @@ remains Spring's operational probe. No business modules or authentication exist.
 
 ## Get started
 
-Build and run native tests with Docker:
+Start and stop the development environment with Docker:
 
 ```bash
-docker compose run --rm build
+./bin/up
+./bin/down
+ERBAS_JAVA_PORT=49080 ./bin/up
 ```
 
-Run complete isolated validation against the explicitly supplied contract:
+Java defaults to loopback `http://127.0.0.1:48080`; `GET /health` returns
+`{"status":"ok"}`. PostgreSQL is not published, and its volume persists across
+stops. See [development usage](docs/usage.md#development) for readiness and probes.
+
+`bin/up` starts development; `bin/check` remains the complete isolated validation
+authority, using the explicitly supplied contract:
 
 ```bash
 ERBAS_CONTRACT_DIR=/path/to/checkout/erbas-contract \

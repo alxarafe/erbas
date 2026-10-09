@@ -4,7 +4,8 @@
 
 Use Bash, Git, Docker with Compose, and basic shell utilities including GNU
 `timeout`, `mktemp`, `sed` and `grep`. The Docker daemon must be available.
-Run commands from the Java repository root. Java, Maven, PostgreSQL, Node.js and
+The lifecycle scripts resolve the repository root from any working directory;
+other examples below assume the Java repository root. Java, Maven, PostgreSQL, Node.js and
 Bruno run inside Docker, never on the host.
 
 Existing tools remain Java 25, Spring Boot 4.1.1, Maven 3.10.0 and Wrapper 3.3.4.
@@ -22,8 +23,9 @@ pinned runner. No collection or tooling is copied into Java.
 ## Development
 
 ```bash
-docker compose run --rm build
-docker compose up --build app
+./bin/up
+./bin/down
+ERBAS_JAVA_PORT=49080 ./bin/up
 ```
 
 Development uses `compose.yaml`, a persistent PostgreSQL volume and container
@@ -31,14 +33,52 @@ port 8080 published at `127.0.0.1:48080`. Configure `ERBAS_JAVA_PORT` to change
 the host port. PostgreSQL has no host port. Development defaults are database
 `erbas_dev`, user `erbas`, password `erbas_local_only`; override them with
 `ERBAS_DB_NAME`, `ERBAS_DB_USER`, `ERBAS_DB_PASSWORD`. They are local defaults,
-not production credentials.
+not production credentials. `bin/down` removes development containers and the
+Compose network, preserving the named PostgreSQL volume and its data. It is safe
+to repeat when services are already stopped and accepts no volume-removal option.
+
+`bin/up` validates Compose, builds only the application target, and starts only
+`postgres` and `app` in the background. Compose waits up to 120 seconds for their
+existing healthchecks (including PostgreSQL readiness and Spring Actuator).
+The script then waits up to 60 seconds for the published `/health` endpoint:
+HTTP 200, `application/json` and the literal object `{"status":"ok"}` (JSON
+whitespace and media-type parameters are accepted). Other JSON properties or
+values are rejected. A noncontractual HTTP 200 fails immediately. Startup,
+build, Docker and probe failures exit nonzero; failed startup leaves resources
+available for diagnosis and does not delete data. Builds have a 900-second
+watchdog; each probe has bounded Docker and HTTP timeouts. Readiness polling can
+exceed its deadline by one bounded probe.
+
+The published endpoint probe reuses curl already installed in the application
+runtime image through a short-lived container with host networking. This
+development workflow requires Linux Docker Engine host networking; it needs no
+host curl, Java or JSON tool and introduces no extra image dependency. Docker
+Desktop requires host networking support to be explicitly enabled.
+
+These scripts are the repository-owned lifecycle interface for external
+development orchestrators. They do not run complete isolated validation;
+`bin/check` remains its sole authority. For only native build/tests, use
+`docker compose run --rm build`.
 
 The health URL is `http://127.0.0.1:48080/health`. For example,
-`ERBAS_JAVA_PORT=49080 docker compose up --build app` publishes the same internal
+`ERBAS_JAVA_PORT=49080 ./bin/up` publishes the same internal
 8080 on loopback host port 49080. `ERBAS_APP_PORT` is no longer used. See the
 [shared port convention](https://github.com/alxarafe/erbas-contract/blob/main/docs/development-ports.md).
 The CI overlay `docker/compose.ci.yaml` removes the app's host publication;
 CI and complete isolated validation access services inside Docker.
+
+To query Health without installing host curl, while the default environment runs:
+
+```bash
+docker run --rm --network host --entrypoint curl "$(docker compose images --quiet app)" \
+  --fail --silent --show-error --noproxy '*' -H 'Accept: application/json' \
+  http://127.0.0.1:48080/health
+```
+
+Use port 49080 in that URL after the override example. Alternatively, if curl
+is already installed on the host, run `curl http://127.0.0.1:48080/health`.
+Stop with `./bin/down` (use the same Compose project/environment configuration
+as startup). No database port is published by either lifecycle command.
 
 Flyway reads `src/main/resources/db/migration` at startup. V1 creates only
 `erbas_persistence_marker` and inserts marker 1. No business schema, ORM, JPA or
