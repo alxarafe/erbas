@@ -16,9 +16,11 @@ Java and .NET converge on a neutral contract so consumers can use either stack.
 | [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | Independent .NET implementation; CI includes shared Bruno |
 | [erbas-client](https://github.com/alxarafe/erbas-client) | Planned shared Angular consumer |
 
-The scope is a persistence foundation and `GET /health` returning
+The scope includes JDBC authentication persistence, minimal login and opaque
+bearer authentication through Spring Security. `GET /health` returns
 `{"status":"ok"}`: HTTP process liveness after startup. `/actuator/health`
-remains Spring's operational probe. No business modules or authentication exist.
+remains Spring's operational probe. AUTH-003 operation/bootstrap and full shared
+login conformance remain pending; no users are provisioned by default.
 
 ## Get started
 

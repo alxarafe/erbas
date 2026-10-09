@@ -6,6 +6,7 @@
 | [Integration ADR](decisions/0001-java-health-conformance.md) | Approved boundaries and choices |
 | [CONTRACT-001B verification](verification/contract-001b.md) | Actual results, isolation and cleanup evidence |
 | [AUTH-003 persistence verification](verification/auth-003-persistence.md) | Task 1 schema, JDBC decisions and isolated tests; login pending |
+| [AUTH-003 login verification](verification/auth-003-login.md) | Task 2 login and Spring Security; operation/conformance pending |
 | [Working agreement](../AGENTS.md) | Persistent repository rules |
 | [Contract revision](../contract.revision) | Exact unpublished commit |
 

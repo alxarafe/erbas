@@ -9,7 +9,8 @@ other examples below assume the Java repository root. Java, Maven, PostgreSQL, N
 Bruno run inside Docker, never on the host.
 
 Existing tools remain Java 25, Spring Boot 4.1.1, Maven 3.10.0 and Wrapper 3.3.4.
-No dependency or existing image pin changes in this task.
+Spring Boot manages the added `spring-boot-starter-security` dependency (4.1.1),
+including Spring Security 7.1.1. Existing image pins remain unchanged.
 
 | Image | Pinned digest |
 | --- | --- |
@@ -83,13 +84,32 @@ as startup). No database port is published by either lifecycle command.
 Flyway reads `src/main/resources/db/migration` at startup. V1 creates
 `erbas_persistence_marker` and inserts marker 1. V2 adds the minimal authentication
 persistence (`auth_user` and `auth_access_token`) without seeding any users or
-tokens. Login, password encoding and bearer authentication are not implemented
-by this persistence task. No ORM, JPA or Hibernate is present.
+tokens. Login and stateless bearer authentication are implemented; explicit
+development and conformance account provisioning remain pending AUTH-003 task 3.
+No ORM, JPA or Hibernate is present.
 The multi-stage runtime runs as user 10001; Compose uses
 a read-only filesystem and temporary `/tmp`.
 
 `GET /health` is public process liveness, independent of dependencies after
 startup. `/actuator/health` retains Spring's operational meaning and representation.
+
+## Authentication implementation (operation pending)
+
+`POST /api/auth/login` implements the closed JSON exchange defined by shared
+AUTH-001. Password encoding uses native Spring Security PBKDF2-HMAC-SHA256
+(600,000 iterations, 16-byte random salt), preserving long passwords unchanged.
+Tokens contain 256 random bits encoded as Base64 URL-safe without padding;
+only their SHA-256 digest is stored. The internal application setting
+`erbas.auth.access-token-ttl` defaults to `PT1H`, with environment override
+`ERBAS_AUTH_ACCESS_TOKEN_TTL` and an allowed internal range of 1 second to 30 days.
+TTL is not returned by login. Other resources require authentication; the
+public operational liveness/readiness probes remain accessible.
+
+No accounts are created automatically. Local bootstrap, validation credentials,
+Compose variable forwarding and complete shared conformance are subsequent work.
+The pinned `contract.revision` and `bin/check` contractual flow are still unchanged.
+See [task 2 verification](verification/auth-003-login.md) for native HTTP and
+PostgreSQL tests. No registration, logout, refresh or business permissions are added.
 
 ## Complete validation
 
@@ -110,10 +130,12 @@ Revision and cleanliness are rechecked immediately before each contract call.
 The check validates Compose, builds the unchanged Dockerfile and executes the
 regular native suite in a fresh container even with cached layers. Two fresh
 PostgreSQL instances must have empty public schemas. Maven explicitly selects
-`HealthIntegrationIT,AuthenticationPersistenceIT` against its own PostgreSQL,
+`HealthIntegrationIT,AuthenticationPersistenceIT,AuthenticationIntegrationIT` against its own PostgreSQL,
 with real Flyway and JDBC. The persistence tests verify V1 and V2 exactly once,
 no authentication seed data, JDBC round trips, constraints, and token lookup
 eligibility at expiry and for disabled users. Tests roll back their fixture data.
+Authentication integration tests additionally verify login, real bearer use through
+the security chain, hash storage, deterministic expiry and equivalent failures.
 The existing context test and new MVC test remain in the regular native suite.
 
 Java starts against the separate API database. Bounded health waiting, real

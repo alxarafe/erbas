@@ -4,12 +4,15 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Optional;
 
+import com.alxarafe.erbas.auth.application.LoginUseCase.CredentialLookup;
+import com.alxarafe.erbas.auth.application.LoginUseCase.Credentials;
+
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 /** Persistence only: callers supply encoded passwords and SHA-256 token digests. */
 @Repository
-public class JdbcAuthenticationStore {
+public class JdbcAuthenticationStore implements CredentialLookup {
 
     private final JdbcTemplate jdbc;
 
@@ -24,10 +27,11 @@ public class JdbcAuthenticationStore {
                 """, Long.class, email, passwordHash, enabled);
     }
 
-    public Optional<UserCredentials> findUserByEmail(String email) {
+    @Override
+    public Optional<Credentials> findUserByEmail(String email) {
         return jdbc.query("""
                 SELECT id, email, password_hash, enabled FROM auth_user WHERE email = ?
-                """, (rs, row) -> new UserCredentials(rs.getLong("id"), rs.getString("email"),
+                """, (rs, row) -> new Credentials(rs.getLong("id"), rs.getString("email"),
                 rs.getString("password_hash"), rs.getBoolean("enabled")), email)
                 .stream().findFirst();
     }
@@ -46,13 +50,6 @@ public class JdbcAuthenticationStore {
                 WHERE t.token_hash = ? AND t.expires_at > ? AND u.enabled
                 """, (rs, row) -> new TokenIdentity(rs.getLong("id"), rs.getString("email")),
                 tokenHash, Timestamp.from(now)).stream().findFirst();
-    }
-
-    public record UserCredentials(long id, String email, String passwordHash, boolean enabled) {
-        @Override
-        public String toString() {
-            return "UserCredentials[id=" + id + ", enabled=" + enabled + "]";
-        }
     }
 
     public record TokenIdentity(long userId, String email) { }
