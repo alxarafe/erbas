@@ -35,10 +35,27 @@ For every task, follow this order:
 5. Obtain explicit human approval.
 6. Implement only the approved task.
 7. Verify it with the applicable tests.
-8. Deploy it to the applicable environment.
-9. Run post-deployment checks.
+8. Deploy it to the applicable environment only with separate express authorization.
+9. Run post-deployment checks when deployment is authorized and applicable.
 10. Present evidence.
-11. Obtain approval before starting another task.
+11. Review the diff to confirm it contains only the approved task's changes.
+12. Close the completed, validated task with a local atomic commit.
+13. Obtain approval before starting another task.
+
+Explicit task approval also authorizes staging and its final local commit once
+implementation, applicable validations and scope review are complete. No second
+authorization is required solely for that commit. Use one atomic commit, or the
+minimum number of atomic commits the task's structure requires, with clear
+messages consistent with repository conventions.
+
+Do not commit incomplete tasks or tasks with failed validations. Correct and
+revalidate any defect found before closing a task. Never start the next task
+with uncommitted changes from the previous one; if a task exceptionally starts
+with another task's pending changes, separate their commits correctly before
+continuing. Preserve all other repository-specific rules.
+
+Task approval does not authorize push, PR creation, merge, tag, release,
+publication or deployment; each requires separate express authorization.
 
 If a request combines independent capabilities, stop and split it into ordered
 tasks. Request approval for the first task only. Do not silently expand the
@@ -234,7 +251,8 @@ controls belong only to host verification, never production application behavior
 
 Failed conformance must block publication/deployment. CONTRACT-002 will integrate
 this authority into CI; current general CI does not claim shared conformance.
-Do not commit, push, create PRs, merge, tag, release, publish or deploy without
+Task approval authorizes its final local commit under the lifecycle rules above.
+Do not push, create PRs, merge, tag, release, publish or deploy without separate
 express authorization. Preserve unrelated changes and resources.
 
 ## Public documentation
