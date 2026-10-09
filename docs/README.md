@@ -5,6 +5,7 @@
 | [Usage](usage.md) | Docker build, development, isolated validation and diagnostics |
 | [Integration ADR](decisions/0001-java-health-conformance.md) | Approved boundaries and choices |
 | [CONTRACT-001B verification](verification/contract-001b.md) | Actual results, isolation and cleanup evidence |
+| [AUTH-003 persistence verification](verification/auth-003-persistence.md) | Task 1 schema, JDBC decisions and isolated tests; login pending |
 | [Working agreement](../AGENTS.md) | Persistent repository rules |
 | [Contract revision](../contract.revision) | Exact unpublished commit |
 

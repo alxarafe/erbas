@@ -80,9 +80,12 @@ is already installed on the host, run `curl http://127.0.0.1:48080/health`.
 Stop with `./bin/down` (use the same Compose project/environment configuration
 as startup). No database port is published by either lifecycle command.
 
-Flyway reads `src/main/resources/db/migration` at startup. V1 creates only
-`erbas_persistence_marker` and inserts marker 1. No business schema, ORM, JPA or
-Hibernate is present. The multi-stage runtime runs as user 10001; Compose uses
+Flyway reads `src/main/resources/db/migration` at startup. V1 creates
+`erbas_persistence_marker` and inserts marker 1. V2 adds the minimal authentication
+persistence (`auth_user` and `auth_access_token`) without seeding any users or
+tokens. Login, password encoding and bearer authentication are not implemented
+by this persistence task. No ORM, JPA or Hibernate is present.
+The multi-stage runtime runs as user 10001; Compose uses
 a read-only filesystem and temporary `/tmp`.
 
 `GET /health` is public process liveness, independent of dependencies after
@@ -107,7 +110,10 @@ Revision and cleanliness are rechecked immediately before each contract call.
 The check validates Compose, builds the unchanged Dockerfile and executes the
 regular native suite in a fresh container even with cached layers. Two fresh
 PostgreSQL instances must have empty public schemas. Maven explicitly selects
-`HealthIntegrationIT` against its own PostgreSQL, with real Flyway and JDBC.
+`HealthIntegrationIT,AuthenticationPersistenceIT` against its own PostgreSQL,
+with real Flyway and JDBC. The persistence tests verify V1 and V2 exactly once,
+no authentication seed data, JDBC round trips, constraints, and token lookup
+eligibility at expiry and for disabled users. Tests roll back their fixture data.
 The existing context test and new MVC test remain in the regular native suite.
 
 Java starts against the separate API database. Bounded health waiting, real

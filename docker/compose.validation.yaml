@@ -34,7 +34,7 @@ services:
       ERBAS_DATASOURCE_URL: jdbc:postgresql://postgres-native:5432/erbas_validation
       ERBAS_DATASOURCE_USERNAME: erbas_validation
       ERBAS_DATASOURCE_PASSWORD: ephemeral_validation_only
-    command: ./mvnw --batch-mode --no-transfer-progress -Dtest=HealthIntegrationIT -Dsurefire.failIfNoSpecifiedTests=true test
+    command: ./mvnw --batch-mode --no-transfer-progress -Dtest=HealthIntegrationIT,AuthenticationPersistenceIT -Dsurefire.failIfNoSpecifiedTests=true test
 
   postgres-native:
     <<: *postgres
