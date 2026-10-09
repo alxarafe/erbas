@@ -3,8 +3,9 @@
 > One shared API contract. An independent Java implementation.
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
-[![Java CI](https://github.com/alxarafe/erbas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alxarafe/erbas/actions/workflows/ci.yml)
-[![.NET CI / shared Bruno](https://github.com/alxarafe/alxarafe-dotnet/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alxarafe/alxarafe-dotnet/actions/workflows/ci.yml)
+Java backend CI: [![Java backend CI](https://github.com/alxarafe/erbas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alxarafe/erbas/actions/workflows/ci.yml)
+.NET backend CI / shared conformance: [![.NET backend CI / shared conformance](https://github.com/alxarafe/alxarafe-dotnet/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alxarafe/alxarafe-dotnet/actions/workflows/ci.yml)
+Angular client CI: [![Angular client CI](https://github.com/alxarafe/erbas-client/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alxarafe/erbas-client/actions/workflows/ci.yml)
 
 ERBAS Java is the Java/Spring Boot implementation of an API-only ERP laboratory.
 Java and .NET converge on a neutral contract so consumers can use either stack.
@@ -12,9 +13,9 @@ Java and .NET converge on a neutral contract so consumers can use either stack.
 | Repository | Responsibility |
 | --- | --- |
 | [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and the sole Bruno collection |
-| [erbas](https://github.com/alxarafe/erbas) | Java implementation with PostgreSQL and Flyway |
-| [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | Independent .NET implementation; CI includes shared Bruno |
-| [erbas-client](https://github.com/alxarafe/erbas-client) | Planned shared Angular consumer |
+| [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot backend implementing Health and AUTH-001 with PostgreSQL and Flyway |
+| [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | .NET backend implementing Health and AUTH-001 plus platform modules; CI includes shared Bruno |
+| [erbas-client](https://github.com/alxarafe/erbas-client) | Angular 22 client consuming Health and AUTH-001 from either backend; WEB-002 completed |
 
 The scope includes JDBC authentication persistence, minimal login and opaque
 bearer authentication through Spring Security. `GET /health` returns
@@ -53,10 +54,15 @@ No host Java, Maven or Bruno is needed. See [usage](docs/usage.md).
 
 The [declared revision](contract.revision) is an unpublished commit; there is no
 contract release or `v0.1.0` tag. [AUTH-003 local evidence](docs/verification/auth-003.md)
-is separate from the existing general CI badge, which does not run shared Bruno.
+records completed AUTH-003 and local AUTH-001 conformance against the pinned
+revision. This is separate from the general Java CI badge, which does not run
+shared Bruno.
 
 The .NET badge reports the .NET workflow, including its shared Bruno checks;
-it does not establish Java conformance.
+it does not establish Java conformance. Angular client CI verifies its own
+tests, build, runtime and isolated Health/login proxies. The client's
+[real dual-backend demo evidence](https://github.com/alxarafe/erbas-client/blob/main/docs/full-stack-development.md#web-002-integration-verification-2026-10-09)
+records WEB-002 integration separately from those CI results.
 
 Browse the [documentation index](docs/README.md),
 [integration decision](docs/decisions/0001-java-health-conformance.md) and
