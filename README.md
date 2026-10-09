@@ -19,8 +19,10 @@ Java and .NET converge on a neutral contract so consumers can use either stack.
 The scope includes JDBC authentication persistence, minimal login and opaque
 bearer authentication through Spring Security. `GET /health` returns
 `{"status":"ok"}`: HTTP process liveness after startup. `/actuator/health`
-remains Spring's operational probe. AUTH-003 operation/bootstrap and full shared
-login conformance remain pending; no users are provisioned by default.
+remains Spring's operational probe. Java implements shared AUTH-001 login with
+PBKDF2 passwords and opaque bearer tokens stored only as digests. Local accounts
+require [explicit bootstrap](docs/usage.md#local-login-account); no accounts are
+provisioned by default. Registration, logout and refresh are outside this scope.
 
 ## Get started
 
@@ -50,7 +52,7 @@ No host Java, Maven or Bruno is needed. See [usage](docs/usage.md).
 ## Status and documentation
 
 The [declared revision](contract.revision) is an unpublished commit; there is no
-contract release or `v0.1.0` tag. [Local evidence](docs/verification/contract-001b.md)
+contract release or `v0.1.0` tag. [AUTH-003 local evidence](docs/verification/auth-003.md)
 is separate from the existing general CI badge, which does not run shared Bruno.
 
 The .NET badge reports the .NET workflow, including its shared Bruno checks;

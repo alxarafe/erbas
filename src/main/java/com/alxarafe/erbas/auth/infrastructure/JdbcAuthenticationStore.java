@@ -27,6 +27,14 @@ public class JdbcAuthenticationStore implements CredentialLookup {
                 """, Long.class, email, passwordHash, enabled);
     }
 
+    /** Bootstrap must never overwrite an existing account, including concurrent startup. */
+    public void createBootstrapUserIfAbsent(String email, String passwordHash) {
+        jdbc.update("""
+                INSERT INTO auth_user (email, password_hash, enabled)
+                VALUES (?, ?, true) ON CONFLICT (email) DO NOTHING
+                """, email, passwordHash);
+    }
+
     @Override
     public Optional<Credentials> findUserByEmail(String email) {
         return jdbc.query("""

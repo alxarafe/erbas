@@ -3,7 +3,7 @@
 ## Requirements and versions
 
 Use Bash, Git, Docker with Compose, and basic shell utilities including GNU
-`timeout`, `mktemp`, `sed` and `grep`. The Docker daemon must be available.
+`timeout`, `mktemp`, `sed`, `grep` and `od`. The Docker daemon must be available.
 The lifecycle scripts resolve the repository root from any working directory;
 other examples below assume the Java repository root. Java, Maven, PostgreSQL, Node.js and
 Bruno run inside Docker, never on the host.
@@ -84,8 +84,8 @@ as startup). No database port is published by either lifecycle command.
 Flyway reads `src/main/resources/db/migration` at startup. V1 creates
 `erbas_persistence_marker` and inserts marker 1. V2 adds the minimal authentication
 persistence (`auth_user` and `auth_access_token`) without seeding any users or
-tokens. Login and stateless bearer authentication are implemented; explicit
-development and conformance account provisioning remain pending AUTH-003 task 3.
+tokens. Login and stateless bearer authentication are implemented. Account
+bootstrap is explicit and runs after migrations; it is not part of Flyway.
 No ORM, JPA or Hibernate is present.
 The multi-stage runtime runs as user 10001; Compose uses
 a read-only filesystem and temporary `/tmp`.
@@ -93,7 +93,7 @@ a read-only filesystem and temporary `/tmp`.
 `GET /health` is public process liveness, independent of dependencies after
 startup. `/actuator/health` retains Spring's operational meaning and representation.
 
-## Authentication implementation (operation pending)
+## Authentication
 
 `POST /api/auth/login` implements the closed JSON exchange defined by shared
 AUTH-001. Password encoding uses native Spring Security PBKDF2-HMAC-SHA256
@@ -105,11 +105,52 @@ only their SHA-256 digest is stored. The internal application setting
 TTL is not returned by login. Other resources require authentication; the
 public operational liveness/readiness probes remain accessible.
 
-No accounts are created automatically. Local bootstrap, validation credentials,
-Compose variable forwarding and complete shared conformance are subsequent work.
-The pinned `contract.revision` and `bin/check` contractual flow are still unchanged.
-See [task 2 verification](verification/auth-003-login.md) for native HTTP and
-PostgreSQL tests. No registration, logout, refresh or business permissions are added.
+Use the returned token unchanged as `Authorization: Bearer <accessToken>`
+against the issuing Java backend. It is opaque, not JWT; Java and .NET tokens
+are not interoperable. The contract lives exclusively in `erbas-contract`.
+No registration, logout, refresh, roles or business permissions are implemented.
+See [AUTH-003 verification](verification/auth-003.md).
+
+### Local login account
+
+The development Compose sets the `development` profile and forwards optional
+bootstrap variables. Bootstrap is disabled by default. For an explicit local
+demo account, start with:
+
+```bash
+ERBAS_AUTH_BOOTSTRAP_ENABLED=true \
+ERBAS_AUTH_BOOTSTRAP_EMAIL=local@example.test \
+ERBAS_AUTH_BOOTSTRAP_PASSWORD=local-demo-only \
+./bin/up
+```
+
+These are **local/demo-only credentials**, never production values. Set your own
+local email/password when needed. `ERBAS_JAVA_PORT` remains configurable and can
+be combined with these variables. No contract checkout or manual SQL is needed.
+For the literal demo values above, this Docker-only probe verifies login without
+printing the token:
+
+```bash
+printf '%s' '{"email":"local@example.test","password":"local-demo-only"}' |
+  docker compose exec -T app curl --silent --show-error --output /dev/null \
+    --write-out 'HTTP %{http_code}\n' --max-time 5 \
+    -H 'Content-Type: application/json' --data-binary @- \
+    http://localhost:8080/api/auth/login
+```
+
+The account persists with the development volume. Repeated startup with the same
+credentials reuses it without changing its ID/hash. An existing disabled account
+or different password fails bootstrap safely; it is never overwritten or
+reactivated. Use a fresh local email for a separate demo identity. This is not a
+password reset or account management API. Removing bootstrap variables prevents
+future seeding; it does not delete accounts or volumes.
+
+Application bootstrap also requires exactly one active profile: `development`
+or `validation`. Enabling it without that profile, with mixed/production profiles,
+or without nonempty email/password fails before creating an account. The normal
+application defaults to bootstrap disabled. Production must not enable local/test
+profiles or bootstrap. Passwords are encoded with the same standard encoder used
+by login; no credentials are logged. TTL is also forwarded by development Compose.
 
 ## Complete validation
 
@@ -130,16 +171,27 @@ Revision and cleanliness are rechecked immediately before each contract call.
 The check validates Compose, builds the unchanged Dockerfile and executes the
 regular native suite in a fresh container even with cached layers. Two fresh
 PostgreSQL instances must have empty public schemas. Maven explicitly selects
-`HealthIntegrationIT,AuthenticationPersistenceIT,AuthenticationIntegrationIT` against its own PostgreSQL,
+`HealthIntegrationIT,AuthenticationPersistenceIT,AuthenticationIntegrationIT,AuthenticationBootstrapIT`
+against its own PostgreSQL,
 with real Flyway and JDBC. The persistence tests verify V1 and V2 exactly once,
 no authentication seed data, JDBC round trips, constraints, and token lookup
 eligibility at expiry and for disabled users. Tests roll back their fixture data.
 Authentication integration tests additionally verify login, real bearer use through
 the security chain, hash storage, deterministic expiry and equivalent failures.
+Bootstrap integration verifies encoded local provisioning, idempotence and
+preservation of existing accounts. Bootstrap remains off for the native suite;
+integration fixtures roll back and never use the development database.
 The existing context test and new MVC test remain in the regular native suite.
 
 Java starts against the separate API database. Bounded health waiting, real
-Actuator HTTP and SQL assertions verify migration success and marker 1. The
+Actuator HTTP and SQL assertions verify V1 and V2 once, no failed migrations,
+marker 1 and both auth tables. `bin/check` replaces any supplied test credentials
+with a per-run validation email and a password generated from 32 bytes of host
+`/dev/urandom` (hex encoded). Validation Compose injects them only into the app's
+explicit validation bootstrap; the runner receives them by environment names.
+No credentials are build arguments or image contents. SQL checks exactly one
+enabled fixture account, the PBKDF2 encoding and inequality with the clear password,
+without printing the account, password or hash. The
 script then invokes the existing contract interface with its generated network:
 
 ```bash
@@ -147,8 +199,21 @@ script then invokes the existing contract interface with its generated network:
 ```
 
 This illustrates the internal call, not another complete validation entry point.
-The same collection runs again after only API PostgreSQL is stopped, proving
-HTTP liveness does not promise database availability.
+The sole shared collection runs once with PostgreSQL available: Health plus all
+login cases (15 requests, 45 Bruno tests at the pinned revision), without skips.
+The runner withholds detailed Bruno output to protect credentials and tokens.
+After stopping only API PostgreSQL and inspecting its stopped state, `bin/check`
+directly verifies `/health`: HTTP 200, `application/json`, exact body
+`{"status":"ok"}`. Login/Bruno is not repeated with DB down. Actuator's dependency
+health is inspected separately and can return 503 without invalidating liveness.
+
+A separate login probe keeps one real token only in process memory for log
+checks. EXIT cleanup inspects app/database logs for the generated password,
+password hash, emitted token, credential JSON fields, Authorization/Bearer
+headers and digest patterns, withholding any matched content. Native auth and
+bootstrap tests also capture output and assert that their known secrets are absent.
+Log-check failure makes validation fail even if resource cleanup succeeds.
+Validation never inherits or provisions development credentials.
 
 ## Isolation, timeouts and cleanup
 
@@ -164,8 +229,9 @@ are used. Native integration and Bruno/API tests use separate PostgreSQL storage
 | Each contract command, including runner build | 600 seconds |
 | Compose teardown | 90 seconds |
 | Docker ownership/inventory operation | 15 seconds |
+| Optional database-down Actuator probe | 45 seconds (HTTP 40 seconds) |
 
-Contract limits remain HTTP 2 seconds, Bruno 10 and lint 30. Host watchdogs allow
+Contract limits are HTTP 2 seconds, Bruno 30 and lint 30. Host watchdogs allow
 10 seconds after TERM before forcing termination. Startup polling may exceed
 its deadline by one bounded inspect operation.
 

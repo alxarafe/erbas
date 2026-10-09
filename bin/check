@@ -9,7 +9,7 @@ elif [[ $# -ne 0 ]]; then
     echo 'Usage: ./bin/check [--exercise-failure contract|startup-timeout]' >&2
     exit 2
 fi
-for tool in git docker timeout; do
+for tool in git docker timeout od; do
     command -v "$tool" >/dev/null || { echo "ERROR: missing host tool: $tool" >&2; exit 2; }
 done
 bounded() { local seconds="$1"; shift; timeout --kill-after=10s "$seconds" "$@"; }
@@ -70,6 +70,14 @@ export ERBAS_CHECK_RUN="erbas-check-${BASHPID}-${RANDOM}-${RANDOM}"
 project="$ERBAS_CHECK_RUN"
 network="${project}-network"
 readonly project network
+# Always replace supplied credentials: validation must never reuse a real account.
+password_bytes="$(od -An -N32 -tx1 /dev/urandom)"
+export ERBAS_TEST_PASSWORD="${password_bytes//[[:space:]]/}"
+[[ "$ERBAS_TEST_PASSWORD" =~ ^[0-9a-f]{64}$ ]] || {
+    echo 'ERROR: unable to generate ephemeral validation credentials.' >&2; exit 2;
+}
+unset password_bytes
+export ERBAS_TEST_EMAIL="validation-${project}@auth-003.invalid"
 unset COMPOSE_FILE COMPOSE_PROJECT_NAME COMPOSE_PROFILES COMPOSE_ENV_FILES COMPOSE_REMOVE_ORPHANS
 compose=(docker compose --env-file /dev/null --project-name "$project"
     --file "$root/docker/compose.validation.yaml")
@@ -80,6 +88,24 @@ inventory() {
     [[ "$kind" != container ]] || options+=(--all)
     docker_query 15 "$kind inventory for $project" docker "$kind" ls "${options[@]}" \
         --filter "label=com.docker.compose.project=$project"
+}
+
+check_sensitive_logs() {
+    local secret pattern
+    docker_query 15 'validation service logs' "${compose[@]}" logs --no-color app postgres-api || return 1
+    for secret in "$ERBAS_TEST_PASSWORD" ephemeral_validation_only \
+            "${issued_token:-}" "${fixture_password_hash:-}"; do
+        if [[ -n "$secret" && "$query_result" == *"$secret"* ]]; then
+            echo 'LOG_SECRECY=failed (sensitive value found; output withheld)' >&2
+            return 1
+        fi
+    done
+    pattern='([Aa]uthorization.*[Bb]earer|"password"[[:space:]]*:|"accessToken"[[:space:]]*:|\{pbkdf2-sha256-600000\}[0-9a-f]+|(^|[^0-9a-f])[0-9a-f]{64}([^0-9a-f]|$))'
+    if [[ "$query_result" =~ $pattern ]]; then
+        echo 'LOG_SECRECY=failed (credential/header pattern found; output withheld)' >&2
+        return 1
+    fi
+    echo 'LOG_SECRECY=passed'
 }
 
 # Refuse collisions before enabling cleanup or creating anything.
@@ -95,6 +121,8 @@ done
 cleanup() {
     local code=$? kind id label remaining containers='' safe=1 cleanup_code=0
     trap - EXIT INT TERM
+    # Inspect even failure-path logs without ever printing their contents.
+    if check_sensitive_logs; then :; else [[ "$code" != 0 ]] || code=1; fi
     # Check ownership before down can remove any project resources.
     for kind in container network volume; do
         if inventory "$kind"; then
@@ -225,14 +253,52 @@ echo "ACTUATOR_HTTP=$actuator_http"
 bounded 15 "${compose[@]}" exec -T postgres-api psql -U erbas_validation -d erbas_validation -v ON_ERROR_STOP=1 <<'SQL'
 DO $$ BEGIN
     IF (SELECT count(*) FROM flyway_schema_history WHERE version = '1' AND success) <> 1
+       OR (SELECT count(*) FROM flyway_schema_history WHERE version = '2' AND success) <> 1
        OR EXISTS (SELECT 1 FROM flyway_schema_history WHERE NOT success)
-       OR (SELECT count(*) FROM erbas_persistence_marker WHERE marker_id = 1) <> 1 THEN
-        RAISE EXCEPTION 'Missing successful migration or infrastructure marker';
+       OR (SELECT count(*) FROM erbas_persistence_marker WHERE marker_id = 1) <> 1
+       OR to_regclass('public.auth_user') IS NULL
+       OR to_regclass('public.auth_access_token') IS NULL THEN
+        RAISE EXCEPTION 'Missing successful migrations, authentication tables or infrastructure marker';
     END IF;
 END $$;
-SELECT version, success FROM flyway_schema_history WHERE version = '1';
+SELECT version, success FROM flyway_schema_history WHERE version IN ('1', '2') ORDER BY installed_rank;
 SELECT marker_id FROM erbas_persistence_marker;
 SQL
+
+verify_fixture() {
+    docker_query 15 'validation account invariants' "${compose[@]}" exec -T \
+        --env ERBAS_TEST_EMAIL postgres-api psql -U erbas_validation -d erbas_validation -v ON_ERROR_STOP=1 -At <<'SQL'
+\getenv expected_email ERBAS_TEST_EMAIL
+SELECT (SELECT count(*) FROM auth_user), enabled, password_hash
+FROM auth_user WHERE email = :'expected_email';
+SQL
+    local fixture_pattern='^1\|t\|(\{pbkdf2-sha256-600000\}[0-9a-f]{96})$'
+    [[ "$query_result" =~ $fixture_pattern ]] || {
+        echo 'ERROR: validation account is missing, duplicated, disabled or incorrectly encoded.' >&2; return 1;
+    }
+    fixture_password_hash="${BASH_REMATCH[1]}"
+    [[ "$fixture_password_hash" != "$ERBAS_TEST_PASSWORD" ]] || {
+        echo 'ERROR: validation password was persisted in cleartext.' >&2; return 1;
+    }
+    echo 'VALIDATION_ACCOUNT=verified COUNT=1 ENABLED=true PASSWORD=encoded'
+}
+verify_fixture
+
+# Capture a real emitted token only in memory so the final log check can detect it.
+# The generated email and hex password contain no JSON metacharacters. Values are
+# injected by environment name, never command-line arguments or build arguments.
+docker_query 15 'login for sensitive-log verification' "${compose[@]}" exec -T \
+    --env ERBAS_TEST_EMAIL --env ERBAS_TEST_PASSWORD app sh -c '
+    printf "{\"email\":\"%s\",\"password\":\"%s\"}" "$ERBAS_TEST_EMAIL" "$ERBAS_TEST_PASSWORD" |
+        curl --fail --silent --show-error --max-time 5 --max-redirs 0 \
+        -H "Content-Type: application/json" --data-binary @- http://localhost:8080/api/auth/login'
+token_pattern='^\{"accessToken":"([A-Za-z0-9_-]{43})"\}$'
+[[ "$query_result" =~ $token_pattern ]] || {
+    echo 'ERROR: login did not produce a closed opaque-token response (output withheld).' >&2; exit 1;
+}
+issued_token="${BASH_REMATCH[1]}"
+query_result=''
+echo 'SENSITIVE_LOG_PROBE=passed'
 
 if [[ "$scenario" == contract ]]; then
     bounded 30 "${compose[@]}" stop --timeout 10 app
@@ -257,6 +323,7 @@ run_contract() {
     fi
 }
 run_contract database-up
+verify_fixture
 bounded 30 "${compose[@]}" stop --timeout 10 postgres-api
 docker_query 15 'API PostgreSQL container identity' "${compose[@]}" ps --all --quiet postgres-api
 postgres_id="$query_result"
@@ -265,4 +332,19 @@ docker_query 15 "API PostgreSQL stopped state for $postgres_id" docker container
     echo 'ERROR: API PostgreSQL is still running.' >&2; exit 1;
 }
 echo 'API_POSTGRES_RUNNING=false'
-run_contract database-down
+docker_query 15 'database-independent Health HTTP response' "${compose[@]}" exec -T app \
+    curl --silent --show-error --max-time 5 --max-redirs 0 --write-out '\n%{http_code}\n%{content_type}' \
+    -H 'Accept: application/json' -H 'Authorization: Bearer aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
+    http://localhost:8080/health
+health_type="${query_result##*$'\n'}"
+health_payload="${query_result%$'\n'*}"
+health_status="${health_payload##*$'\n'}"
+health_body="${health_payload%$'\n'*}"
+[[ "$health_status" == 200 && "${health_type,,}" == application/json && "$health_body" == '{"status":"ok"}' ]] || {
+    echo 'ERROR: database-down Health is not exact HTTP 200 application/json {"status":"ok"}.' >&2; exit 1;
+}
+echo 'HEALTH_RUN=success PHASE=database-down HTTP=200 JSON=exact'
+docker_query 45 'database-down operational Actuator HTTP response' "${compose[@]}" exec -T app \
+    curl --silent --show-error --max-time 40 --max-redirs 0 --write-out '\n%{http_code}' \
+    -H 'Accept: application/json' http://localhost:8080/actuator/health
+echo "ACTUATOR_HTTP=${query_result##*$'\n'} PHASE=database-down"
