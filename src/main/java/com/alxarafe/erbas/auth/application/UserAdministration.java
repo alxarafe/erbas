@@ -1,6 +1,7 @@
 package com.alxarafe.erbas.auth.application;
 
 import java.util.List;
+import java.math.BigInteger;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -14,7 +15,14 @@ public final class UserAdministration {
         this.encodePassword = encodePassword;
     }
 
-    public List<UserIdentity> list() { return store.listUsers(); }
+    public UserWindow list(BigInteger offset, int limit) {
+        long total = store.countUsers();
+        var items = offset.compareTo(BigInteger.valueOf(total)) >= 0
+                ? List.<UserIdentity>of() : store.listUsers(offset.longValueExact(), limit);
+        return new UserWindow(items, total);
+    }
+
+    public record UserWindow(List<UserIdentity> items, long total) { }
 
     public Optional<UserIdentity> find(String id) {
         var internalId = internalId(id);
@@ -47,7 +55,8 @@ public final class UserAdministration {
     }
 
     public interface Store {
-        List<UserIdentity> listUsers();
+        long countUsers();
+        List<UserIdentity> listUsers(long offset, int limit);
         Optional<UserIdentity> findUserById(long id);
         Optional<UserIdentity> createUserIfEmailAvailable(String email, String passwordHash, boolean admin);
         UserUpdateResult updateUserState(long id, Boolean enabled, Boolean admin);

@@ -195,7 +195,7 @@ class AuthenticationIntegrationIT {
         mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.admin").value(true));
         mvc.perform(get("/api/users").header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk()).andExpect(jsonPath("$[0].email").value(EMAIL));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].email").value(EMAIL));
     }
 
     @Test

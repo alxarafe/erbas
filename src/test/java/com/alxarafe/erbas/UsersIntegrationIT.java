@@ -1,6 +1,7 @@
 package com.alxarafe.erbas;
 
 import java.util.Map;
+import java.util.List;
 
 import com.alxarafe.erbas.auth.infrastructure.JdbcAuthenticationStore;
 import org.junit.jupiter.api.BeforeAll;
@@ -100,6 +101,46 @@ class UsersIntegrationIT {
         String token = login("unicode@example.test", password);
         send(get("/api/auth/me"), token).andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id)).andExpect(jsonPath("$.admin").value(true));
+    }
+
+    @Test
+    void sqlPaginationOrdersBeforeWindowingAndCountsDisabledUsers() throws Exception {
+        long first = store.createUser("page-first@example.test", hash, true);
+        long second = store.createUser("page-second@example.test", hash, false);
+        long third = store.createUser("page-third@example.test", hash, true);
+        // Move the oldest row's heap version after later inserts; SQL must impose its own order.
+        jdbc.update("UPDATE auth_user SET email = email WHERE id = ?", adminId);
+        var body = send(get("/api/users"), adminToken).andExpect(status().isOk())
+                .andExpect(jsonPath("$.offset").value(0)).andExpect(jsonPath("$.limit").value(50))
+                .andExpect(jsonPath("$.total").value(4)).andExpect(jsonPath("$.order[0].field").value("id"))
+                .andExpect(jsonPath("$.order[0].direction").value("asc"))
+                .andReturn().getResponse().getContentAsString();
+        var page = json.readTree(body);
+        assertThat(page.size()).isEqualTo(5);
+        var ids = new java.util.ArrayList<String>();
+        page.get("items").forEach(user -> ids.add(user.get("id").asString()));
+        assertThat(ids).containsExactlyElementsOf(List.of(adminId, first, second, third).stream()
+                .map(Object::toString).toList());
+        send(get("/api/users").param("limit", "1"), adminToken).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1)).andExpect(jsonPath("$.items[0].id").value(Long.toString(adminId)))
+                .andExpect(jsonPath("$.limit").value(1)).andExpect(jsonPath("$.total").value(4));
+        send(get("/api/users").param("offset", "1").param("limit", "1"), adminToken).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1)).andExpect(jsonPath("$.items[0].id").value(Long.toString(first)))
+                .andExpect(jsonPath("$.offset").value(1)).andExpect(jsonPath("$.total").value(4));
+        send(get("/api/users").param("offset", "100"), adminToken).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty()).andExpect(jsonPath("$.total").value(4))
+                .andExpect(jsonPath("$.offset").value(100)).andExpect(jsonPath("$.limit").value(50));
+        assertThat(store.countUsers()).isEqualTo(4);
+        assertThat(store.findUserById(second).orElseThrow().enabled()).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"offset=-1", "offset=abc", "limit=0", "limit=101", "limit=abc"})
+    void invalidPaginationReturnsContractErrorWithoutChangingUsers(String query) throws Exception {
+        var parts = query.split("=", -1);
+        send(get("/api/users").param(parts[0], parts[1]), adminToken).andExpect(status().isBadRequest())
+                .andExpect(content().json("{\"code\":\"invalid_request\"}", JsonCompareMode.STRICT));
+        assertThat(store.countUsers()).isEqualTo(1);
     }
 
     @ParameterizedTest

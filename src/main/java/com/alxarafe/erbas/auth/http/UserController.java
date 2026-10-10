@@ -1,6 +1,8 @@
 package com.alxarafe.erbas.auth.http;
 
 import java.util.Map;
+import java.util.List;
+import java.math.BigInteger;
 
 import com.alxarafe.erbas.auth.application.UserAdministration;
 import com.alxarafe.erbas.auth.application.UserIdentity;
@@ -39,9 +41,25 @@ public class UserController {
     }
 
     @GetMapping(path = "/api/users", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> list() {
-        return json(200, users.list().stream().map(User::from).toList());
+    public ResponseEntity<?> list(@RequestParam(required = false) String offset,
+                                  @RequestParam(required = false) String limit) {
+        if ((offset != null && !offset.matches("[0-9]+"))
+                || (limit != null && !limit.matches("[0-9]+"))) {
+            return error(400, "invalid_request");
+        }
+        var appliedOffset = offset == null ? BigInteger.ZERO : new BigInteger(offset);
+        var requestedLimit = limit == null ? BigInteger.valueOf(50) : new BigInteger(limit);
+        if (requestedLimit.signum() == 0 || requestedLimit.compareTo(BigInteger.valueOf(100)) > 0) {
+            return error(400, "invalid_request");
+        }
+        int appliedLimit = requestedLimit.intValueExact();
+        var window = users.list(appliedOffset, appliedLimit);
+        return json(200, new UserCollection(window.items().stream().map(User::from).toList(),
+                appliedOffset, appliedLimit, window.total(), List.of(new Order("id", "asc"))));
     }
+
+    public record Order(String field, String direction) { }
+    public record UserCollection(List<User> items, BigInteger offset, int limit, long total, List<Order> order) { }
 
     @GetMapping(path = "/api/users/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> get(@PathVariable String id) {

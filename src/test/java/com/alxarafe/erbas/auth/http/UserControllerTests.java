@@ -90,10 +90,12 @@ class UserControllerTests {
 
     @Test
     void listAndGetExposeOnlyPublicIdentity() throws Exception {
-        when(store.listUsers()).thenReturn(List.of(NORMAL));
+        when(store.countUsers()).thenReturn(1L);
+        when(store.listUsers(0, 50)).thenReturn(List.of(NORMAL));
         when(store.findUserById(2)).thenReturn(Optional.of(NORMAL));
         send(get("/api/users"), true).andExpect(status().isOk())
-                .andExpect(content().json("[" + USER + "]", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"items\":[" + USER + "],\"offset\":0,\"limit\":50,\"total\":1,"
+                        + "\"order\":[{\"field\":\"id\",\"direction\":\"asc\"}]}", JsonCompareMode.STRICT));
         send(get("/api/users/2"), true).andExpect(status().isOk())
                 .andExpect(content().json(USER, JsonCompareMode.STRICT));
     }
@@ -106,6 +108,55 @@ class UserControllerTests {
         send(patch("/api/users/" + id).contentType(MediaType.APPLICATION_JSON).content("{\"admin\":false}"), true)
                 .andExpect(status().isNotFound())
                 .andExpect(content().json("{\"code\":\"user_not_found\"}", JsonCompareMode.STRICT));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0,1", "1,1", "0,100"})
+    void paginationPassesTheRequestedWindowAndPreservesTotal(long offset, int limit) throws Exception {
+        when(store.countUsers()).thenReturn(3L);
+        when(store.listUsers(offset, limit)).thenReturn(List.of(NORMAL));
+        send(get("/api/users").param("offset", Long.toString(offset)).param("limit", Integer.toString(limit)), true)
+                .andExpect(status().isOk()).andExpect(content().json("{\"items\":[" + USER
+                        + "],\"offset\":" + offset + ",\"limit\":" + limit + ",\"total\":3,"
+                        + "\"order\":[{\"field\":\"id\",\"direction\":\"asc\"}]}", JsonCompareMode.STRICT));
+        verify(store).listUsers(offset, limit);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"3", "100", "9223372036854775808"})
+    void offsetAtOrBeyondTotalReturnsAnEmptyWindowWithoutOverflow(String offset) throws Exception {
+        when(store.countUsers()).thenReturn(3L);
+        send(get("/api/users").param("offset", offset), true).andExpect(status().isOk())
+                .andExpect(content().json("{\"items\":[],\"offset\":" + offset + ",\"limit\":50,\"total\":3,"
+                        + "\"order\":[{\"field\":\"id\",\"direction\":\"asc\"}]}", JsonCompareMode.STRICT));
+        verify(store, never()).listUsers(anyLong(), anyInt());
+    }
+
+    @Test
+    void emptyCollectionUsesTheSameClosedEnvelope() throws Exception {
+        send(get("/api/users"), true).andExpect(status().isOk())
+                .andExpect(content().json("{\"items\":[],\"offset\":0,\"limit\":50,\"total\":0,"
+                        + "\"order\":[{\"field\":\"id\",\"direction\":\"asc\"}]}", JsonCompareMode.STRICT));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"offset=-1", "offset=abc", "offset=1.5", "offset=", "limit=0", "limit=101",
+            "limit=abc", "limit=1.5", "limit=", "limit=999999999999999999999999"})
+    void invalidPaginationNeverReachesPersistence(String query) throws Exception {
+        var parts = query.split("=", -1);
+        send(get("/api/users").param(parts[0], parts[1]), true).andExpect(status().isBadRequest())
+                .andExpect(content().json("{\"code\":\"invalid_request\"}", JsonCompareMode.STRICT));
+        verifyNoInteractions(store, encoder);
+    }
+
+    @Test
+    void authorizationPrecedesInvalidPagination() throws Exception {
+        send(get("/api/users").param("limit", "abc"), false).andExpect(status().isForbidden());
+        mvc.perform(get("/api/users").param("offset", "-1"))
+                .andExpect(status().isUnauthorized()).andExpect(header().string("WWW-Authenticate", "Bearer"))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(content().json("{\"code\":\"unauthorized\"}", JsonCompareMode.STRICT));
+        verifyNoInteractions(store, encoder);
     }
 
     @ParameterizedTest

@@ -62,10 +62,15 @@ public class JdbcAuthenticationStore implements CredentialLookup, UserAdministra
     }
 
     @Override
-    public List<UserIdentity> listUsers() {
-        return jdbc.query("SELECT id, email, enabled, admin FROM auth_user",
+    public long countUsers() {
+        return jdbc.queryForObject("SELECT count(*) FROM auth_user", Long.class);
+    }
+
+    @Override
+    public List<UserIdentity> listUsers(long offset, int limit) {
+        return jdbc.query("SELECT id, email, enabled, admin FROM auth_user ORDER BY id ASC LIMIT ? OFFSET ?",
                 (rs, row) -> new UserIdentity(rs.getLong("id"), rs.getString("email"),
-                        rs.getBoolean("enabled"), rs.getBoolean("admin")));
+                        rs.getBoolean("enabled"), rs.getBoolean("admin")), limit, offset);
     }
 
     /** All administrative state changes must use this serialized transaction. */

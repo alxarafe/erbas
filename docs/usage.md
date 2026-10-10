@@ -115,7 +115,7 @@ See [AUTH-003 verification](verification/auth-003.md).
 Each protected request resolves current `id`, `email`, `enabled` and `admin`
 from PostgreSQL. Disabling a user rejects existing bearers without deleting
 tokens; admin changes update the Spring Security principal and `ADMIN` authority
-on the next request. Java implements USERS-001 against the pinned draft 0.3.0.
+on the next request. Java implements USERS-001 and COLLECTIONS-001 against the pinned draft 0.4.0.
 
 ### Basic user administration
 
@@ -125,12 +125,23 @@ object has exactly `id` (opaque string), `email`, `enabled` and `admin`.
 `PATCH /api/users/{id}` require the central Spring Security `ADMIN` authority.
 All these resources return JSON with `Cache-Control: no-store`, including errors.
 
+The user list returns exactly `items`, `offset`, `limit`, `total` and `order`.
+Optional `offset` defaults to 0 and must be a nonnegative integer. Optional
+`limit` defaults to 50 and must be an integer from 1 to 100. Invalid values
+return `400 invalid_request` after authentication and administrator authorization,
+without clamping. The server orders by id ASC before applying the window and
+reports `order: [{"field":"id","direction":"asc"}]`; IDs remain opaque.
+`total` counts all users, including disabled accounts, before pagination, while
+`limit` remains the requested capacity. Empty or beyond-total windows return
+200 with `items: []` and complete metadata. No custom ordering or filters exist.
+See [COLLECTIONS-001 evidence](verification/collections-001.md).
+
 Creation takes exactly required `email`, `password` and Boolean `admin`, and
 always enables the account. Email is a nonempty string without normalization;
 exact duplicates conflict. Passwords contain 12–256 Unicode code points, without
 trimming or composition rules, and use the existing PBKDF2 encoder. PATCH accepts
 only one or both Boolean fields `enabled` and `admin`. It cannot change email
-or passwords. There is no DELETE, registration, password management, pagination,
+or passwords. There is no DELETE, registration, password management,
 search, roles or granular permission system.
 
 Closed errors are `400 invalid_request`, protected `401 unauthorized`
@@ -143,7 +154,7 @@ The last enabled admin cannot be disabled or demoted. Self-disable/demotion is
 allowed when another enabled admin remains; the current update succeeds and
 subsequent bearer requests reflect the change. State updates reuse Task 2A's
 serialized PostgreSQL transaction. See [verification](verification/users-001.md)
-and the [shared contract](https://github.com/alxarafe/erbas-contract/blob/d50673851bd98d9fd20d4bc940eb032a998f1539/docs/users-001.md).
+and the [shared contract](https://github.com/alxarafe/erbas-contract/blob/42e0c5ad81902a355fe01d6635466717f46b9dfd/docs/users-001.md).
 
 ### Local login account
 
@@ -243,10 +254,10 @@ script then invokes the existing contract interface with its generated network:
 
 This illustrates the internal call, not another complete validation entry point.
 The sole shared collection is invoked with PostgreSQL available, without skips.
-The pinned draft 0.3.0 contains 67 requests and 253 named checks, including
-USERS-001. It requires disposable isolated validation data and creates unique
+The pinned draft 0.4.0 contains 82 requests and 313 named checks, including
+USERS-001 and COLLECTIONS-001. It requires disposable isolated validation data and creates unique
 users; do not run this mutating suite against production. No conformance skip
-switch is provided. See [USERS-001 evidence](verification/users-001.md).
+switch is provided. See [COLLECTIONS-001 evidence](verification/collections-001.md).
 The runner withholds detailed Bruno output to protect credentials and tokens.
 After shared conformance, SQL verifies that the validation admin is preserved,
 created disposable users remain enabled non-admins, all password hashes use
