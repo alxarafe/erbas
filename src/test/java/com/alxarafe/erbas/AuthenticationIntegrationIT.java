@@ -14,6 +14,7 @@ import java.util.Map;
 
 import com.alxarafe.erbas.auth.infrastructure.JdbcAuthenticationStore;
 import com.alxarafe.erbas.auth.application.UserIdentity;
+import com.alxarafe.erbas.auth.application.UserAdministration.UserUpdateOutcome;
 import com.alxarafe.erbas.auth.infrastructure.BearerAuthenticationProvider;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -154,7 +155,7 @@ class AuthenticationIntegrationIT {
         long id = store.createUser(EMAIL, encodedPassword, true);
         String token = loginToken(EMAIL, PASSWORD);
         assertThat(store.updateUserState(id, false, null).outcome())
-                .isEqualTo(JdbcAuthenticationStore.UserUpdateOutcome.UPDATED);
+                .isEqualTo(UserUpdateOutcome.UPDATED);
         mvc.perform(get("/__test/authenticated").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());
         failedLogin(EMAIL, PASSWORD);
@@ -172,30 +173,29 @@ class AuthenticationIntegrationIT {
                 .andExpect(jsonPath("$.email").value(EMAIL)).andExpect(jsonPath("$.admin").value(true))
                 .andExpect(jsonPath("$.authorities").value(1));
         assertThat(store.updateUserState(id, null, false).outcome())
-                .isEqualTo(JdbcAuthenticationStore.UserUpdateOutcome.UPDATED);
+                .isEqualTo(UserUpdateOutcome.UPDATED);
         mvc.perform(get("/__test/authenticated").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.admin").value(false))
                 .andExpect(jsonPath("$.authorities").value(0));
         assertThat(store.updateUserState(id, null, true).outcome())
-                .isEqualTo(JdbcAuthenticationStore.UserUpdateOutcome.UPDATED);
+                .isEqualTo(UserUpdateOutcome.UPDATED);
         mvc.perform(get("/__test/authenticated").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.admin").value(true))
                 .andExpect(jsonPath("$.authorities").value(1));
         assertThat(store.updateUserState(id, false, null).outcome())
-                .isEqualTo(JdbcAuthenticationStore.UserUpdateOutcome.UPDATED);
+                .isEqualTo(UserUpdateOutcome.UPDATED);
         mvc.perform(get("/__test/authenticated").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void usersHttpOperationsRemainAbsentEvenForAuthenticatedAdministrator() throws Exception {
+    void authenticatedAdministratorCanReadCurrentIdentityAndUsers() throws Exception {
         store.createUser(EMAIL, encodedPassword, true, true);
         String token = loginToken(EMAIL, PASSWORD);
-        for (var request : new org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder[] {
-                get("/api/auth/me"), get("/api/users"), get("/api/users/1"),
-                post("/api/users"), patch("/api/users/1")}) {
-            mvc.perform(request.header("Authorization", "Bearer " + token)).andExpect(status().isNotFound());
-        }
+        mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.admin").value(true));
+        mvc.perform(get("/api/users").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].email").value(EMAIL));
     }
 
     @Test

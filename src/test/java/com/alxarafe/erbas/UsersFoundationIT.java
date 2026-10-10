@@ -11,7 +11,7 @@ import javax.sql.DataSource;
 import com.alxarafe.erbas.auth.application.UserIdentity;
 import com.alxarafe.erbas.auth.infrastructure.AuthenticationBootstrapConfiguration;
 import com.alxarafe.erbas.auth.infrastructure.JdbcAuthenticationStore;
-import com.alxarafe.erbas.auth.infrastructure.JdbcAuthenticationStore.UserUpdateOutcome;
+import com.alxarafe.erbas.auth.application.UserAdministration.UserUpdateOutcome;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

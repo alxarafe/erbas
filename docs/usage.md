@@ -115,7 +115,35 @@ See [AUTH-003 verification](verification/auth-003.md).
 Each protected request resolves current `id`, `email`, `enabled` and `admin`
 from PostgreSQL. Disabling a user rejects existing bearers without deleting
 tokens; admin changes update the Spring Security principal and `ADMIN` authority
-on the next request. The USERS-001 HTTP API remains pending Task 2B.
+on the next request. Java implements USERS-001 against the pinned draft 0.3.0.
+
+### Basic user administration
+
+`GET /api/auth/me` returns the already authenticated identity. The public user
+object has exactly `id` (opaque string), `email`, `enabled` and `admin`.
+`GET /api/users`, `GET /api/users/{id}`, `POST /api/users` and
+`PATCH /api/users/{id}` require the central Spring Security `ADMIN` authority.
+All these resources return JSON with `Cache-Control: no-store`, including errors.
+
+Creation takes exactly required `email`, `password` and Boolean `admin`, and
+always enables the account. Email is a nonempty string without normalization;
+exact duplicates conflict. Passwords contain 12–256 Unicode code points, without
+trimming or composition rules, and use the existing PBKDF2 encoder. PATCH accepts
+only one or both Boolean fields `enabled` and `admin`. It cannot change email
+or passwords. There is no DELETE, registration, password management, pagination,
+search, roles or granular permission system.
+
+Closed errors are `400 invalid_request`, protected `401 unauthorized`
+(with `WWW-Authenticate: Bearer`), `403 forbidden` (without that header),
+`404 user_not_found`, `409 email_conflict` and `409 last_admin`.
+Administrative authorization occurs before lookup. Unusable Java IDs also
+return `user_not_found`, without parsing details. Login retains AUTH-001 errors.
+
+The last enabled admin cannot be disabled or demoted. Self-disable/demotion is
+allowed when another enabled admin remains; the current update succeeds and
+subsequent bearer requests reflect the change. State updates reuse Task 2A's
+serialized PostgreSQL transaction. See [verification](verification/users-001.md)
+and the [shared contract](https://github.com/alxarafe/erbas-contract/blob/d50673851bd98d9fd20d4bc940eb032a998f1539/docs/users-001.md).
 
 ### Local login account
 
@@ -180,7 +208,7 @@ Revision and cleanliness are rechecked immediately before each contract call.
 The check validates Compose, builds the unchanged Dockerfile and executes the
 regular native suite in a fresh container even with cached layers. Two fresh
 PostgreSQL instances must have empty public schemas. Maven explicitly selects
-`HealthIntegrationIT,AuthenticationPersistenceIT,AuthenticationIntegrationIT,AuthenticationBootstrapIT,UsersFoundationIT`
+`HealthIntegrationIT,AuthenticationPersistenceIT,AuthenticationIntegrationIT,AuthenticationBootstrapIT,UsersFoundationIT,UsersIntegrationIT`
 against its own PostgreSQL,
 with real Flyway and JDBC. The persistence tests verify V1, V2 and V3 exactly once,
 no authentication seed data, JDBC round trips, constraints, and token lookup
@@ -193,7 +221,10 @@ concurrency checks and V2-to-V3 upgrade preservation. Bootstrap remains off for
 the native suite. Ordinary fixtures roll back; committed concurrency fixtures
 and the owned upgrade schema are cleaned explicitly in the isolated database.
 The development database is never used.
-The existing context test and new MVC test remain in the regular native suite.
+The context and strict login/user MVC tests remain in the regular native suite.
+User integration tests exercise HTTP creation with real hashing, disabled-token
+rejection, re-enabling, promotion/demotion with existing tokens, self-updates
+and last-admin error mapping.
 
 Java starts against the separate API database. Bounded health waiting, real
 Actuator HTTP and SQL assertions verify V1, V2 and V3 once, no failed migrations,
@@ -213,14 +244,16 @@ script then invokes the existing contract interface with its generated network:
 This illustrates the internal call, not another complete validation entry point.
 The sole shared collection is invoked with PostgreSQL available, without skips.
 The pinned draft 0.3.0 contains 67 requests and 253 named checks, including
-USERS-001. Task 2A intentionally implements only its internal foundation:
-`bin/check` currently exits nonzero at the first deferred protected HTTP endpoint,
-`GET /api/auth/me` (real runtime 401 instead of required 200). Native validation remains
-applicable and must pass. No conformance skip switch is provided. See
-[Task 2A evidence](verification/users-001-foundation.md) for the exact boundary.
+USERS-001. It requires disposable isolated validation data and creates unique
+users; do not run this mutating suite against production. No conformance skip
+switch is provided. See [USERS-001 evidence](verification/users-001.md).
 The runner withholds detailed Bruno output to protect credentials and tokens.
-After full shared conformance passes in Task 2B, `bin/check` proceeds to stop
-only API PostgreSQL and inspect its stopped state. It then
+After shared conformance, SQL verifies that the validation admin is preserved,
+created disposable users remain enabled non-admins, all password hashes use
+PBKDF2, token references are valid, at least one enabled admin remains and
+Flyway history is valid. It does not assume a fixed total user count.
+`bin/check` then stops
+only API PostgreSQL and inspects its stopped state. It then
 directly verifies `/health`: HTTP 200, `application/json`, exact body
 `{"status":"ok"}`. Login/Bruno is not repeated with DB down. Actuator's dependency
 health is inspected separately and can return 503 without invalidating liveness.
@@ -271,8 +304,6 @@ ERBAS_CONTRACT_ALLOW_UNRELEASED=1 \
 ./tests/check-lifecycle.sh
 ```
 
-This complete-contract lifecycle harness is pending Task 2B while the normal
-`bin/check` is expected to fail on absent USERS-001 HTTP endpoints.
 The harness calls `bin/check` and Docker's public inventory interfaces, without
 another validation implementation. It expects success, startup timeout, and
 contractual connection failure, checking cleanup each time. Logs remain in the

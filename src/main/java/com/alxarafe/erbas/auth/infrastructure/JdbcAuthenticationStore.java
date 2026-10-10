@@ -3,10 +3,14 @@ package com.alxarafe.erbas.auth.infrastructure;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.List;
 
 import com.alxarafe.erbas.auth.application.LoginUseCase.CredentialLookup;
 import com.alxarafe.erbas.auth.application.LoginUseCase.Credentials;
 import com.alxarafe.erbas.auth.application.UserIdentity;
+import com.alxarafe.erbas.auth.application.UserAdministration;
+import com.alxarafe.erbas.auth.application.UserAdministration.UserUpdateOutcome;
+import com.alxarafe.erbas.auth.application.UserAdministration.UserUpdateResult;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -15,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** Persistence only: callers supply encoded passwords and SHA-256 token digests. */
 @Repository
-public class JdbcAuthenticationStore implements CredentialLookup {
+public class JdbcAuthenticationStore implements CredentialLookup, UserAdministration.Store {
 
     private final JdbcTemplate jdbc;
 
@@ -55,6 +59,13 @@ public class JdbcAuthenticationStore implements CredentialLookup {
                 SELECT id, email, enabled, admin FROM auth_user WHERE id = ?
                 """, (rs, row) -> new UserIdentity(rs.getLong("id"), rs.getString("email"),
                 rs.getBoolean("enabled"), rs.getBoolean("admin")), userId).stream().findFirst();
+    }
+
+    @Override
+    public List<UserIdentity> listUsers() {
+        return jdbc.query("SELECT id, email, enabled, admin FROM auth_user",
+                (rs, row) -> new UserIdentity(rs.getLong("id"), rs.getString("email"),
+                        rs.getBoolean("enabled"), rs.getBoolean("admin")));
     }
 
     /** All administrative state changes must use this serialized transaction. */
@@ -113,7 +124,4 @@ public class JdbcAuthenticationStore implements CredentialLookup {
                 tokenHash, Timestamp.from(now)).stream().findFirst();
     }
 
-    public enum UserUpdateOutcome { UPDATED, NOT_FOUND, LAST_ADMIN }
-
-    public record UserUpdateResult(UserUpdateOutcome outcome, UserIdentity user) { }
 }
