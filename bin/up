@@ -37,7 +37,11 @@ echo '==> Starting PostgreSQL and Java'
 timeout --kill-after=10s 150 docker compose up --detach --wait --wait-timeout 120 postgres app
 
 stage='published contractual Health readiness'
-image="$(timeout --kill-after=5s 15 docker compose images --quiet app)"
+app_id="$(timeout --kill-after=5s 15 docker compose ps --quiet app)"
+[[ -n "$app_id" ]] || { echo 'ERROR: application container not found.' >&2; false; }
+# A rebuild may replace the image manifest while Compose retains the unchanged
+# container. Use its configured image reference rather than the old image ID.
+image="$(timeout --kill-after=5s 15 docker inspect --format '{{.Config.Image}}' "$app_id")"
 [[ -n "$image" ]] || { echo 'ERROR: application image not found.' >&2; false; }
 # Reuse curl from the existing runtime image. Linux host networking reaches the
 # loopback publication without installing curl or a JSON tool on the host.
