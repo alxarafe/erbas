@@ -31,10 +31,11 @@ class AuthenticationBootstrapIT {
         var environment = new MockEnvironment();
         environment.setActiveProfiles("development");
         var runner = new AuthenticationBootstrapConfiguration()
-                .authenticationBootstrap(store, encoder, environment, EMAIL, PASSWORD);
+                .authenticationBootstrap(store, encoder, environment, EMAIL, PASSWORD, true);
         runner.run(new DefaultApplicationArguments());
         var before = store.findUserByEmail(EMAIL).orElseThrow();
         assertThat(before.enabled()).isTrue();
+        assertThat(store.findUserById(before.id()).orElseThrow().admin()).isTrue();
         assertThat(before.passwordHash().equals(PASSWORD)).isFalse();
         assertThat(encoder.matches(PASSWORD, before.passwordHash())).isTrue();
         runner.run(new DefaultApplicationArguments());
@@ -52,7 +53,7 @@ class AuthenticationBootstrapIT {
         var environment = new MockEnvironment();
         environment.setActiveProfiles("development");
         var runner = new AuthenticationBootstrapConfiguration()
-                .authenticationBootstrap(store, encoder, environment, EMAIL, PASSWORD);
+                .authenticationBootstrap(store, encoder, environment, EMAIL, PASSWORD, false);
         assertThatThrownBy(() -> runner.run(new DefaultApplicationArguments()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Authentication bootstrap cannot reuse the existing account");
@@ -67,7 +68,7 @@ class AuthenticationBootstrapIT {
         var environment = new MockEnvironment();
         environment.setActiveProfiles("validation");
         var runner = new AuthenticationBootstrapConfiguration()
-                .authenticationBootstrap(store, encoder, environment, EMAIL, PASSWORD);
+                .authenticationBootstrap(store, encoder, environment, EMAIL, PASSWORD, false);
         assertThatThrownBy(() -> runner.run(new DefaultApplicationArguments()))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(store.findUserByEmail(EMAIL).orElseThrow().enabled()).isFalse();
@@ -77,9 +78,36 @@ class AuthenticationBootstrapIT {
     void concurrentInsertConflictNeverChangesExistingCredentials() {
         String hash = encoder.encode(PASSWORD);
         long id = store.createUser(EMAIL, hash, true);
-        store.createBootstrapUserIfAbsent(EMAIL, encoder.encode("another-password"));
+        store.createBootstrapUserIfAbsent(EMAIL, encoder.encode("another-password"), false);
         var after = store.findUserByEmail(EMAIL).orElseThrow();
         assertThat(after.id()).isEqualTo(id);
         assertThat(after.passwordHash().equals(hash)).isTrue();
+    }
+
+    @Test
+    void existingNonAdminIsNeverSilentlyPromotedEvenWithMatchingPassword() {
+        long id = store.createUser(EMAIL, encoder.encode(PASSWORD), true);
+        var before = store.findUserByEmail(EMAIL).orElseThrow();
+        var environment = new MockEnvironment();
+        environment.setActiveProfiles("validation");
+        var runner = new AuthenticationBootstrapConfiguration()
+                .authenticationBootstrap(store, encoder, environment, EMAIL, PASSWORD, true);
+        assertThatThrownBy(() -> runner.run(new DefaultApplicationArguments()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Authentication bootstrap cannot reuse the existing account");
+        assertThat(store.findUserById(id).orElseThrow().admin()).isFalse();
+        assertThat(store.findUserByEmail(EMAIL).orElseThrow().passwordHash().equals(before.passwordHash())).isTrue();
+    }
+
+    @Test
+    void existingAdminIsNeverSilentlyDemoted() {
+        long id = store.createUser(EMAIL, encoder.encode(PASSWORD), true, true);
+        var environment = new MockEnvironment();
+        environment.setActiveProfiles("development");
+        var runner = new AuthenticationBootstrapConfiguration()
+                .authenticationBootstrap(store, encoder, environment, EMAIL, PASSWORD, false);
+        assertThatThrownBy(() -> runner.run(new DefaultApplicationArguments()))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(store.findUserById(id).orElseThrow().admin()).isTrue();
     }
 }

@@ -6,10 +6,12 @@ import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken;
 
 public final class BearerAuthenticationProvider implements AuthenticationProvider {
 
+    public static final String ADMIN_AUTHORITY = "ADMIN";
     private final OpaqueAccessTokens tokens;
 
     public BearerAuthenticationProvider(OpaqueAccessTokens tokens) {
@@ -23,7 +25,9 @@ public final class BearerAuthenticationProvider implements AuthenticationProvide
         }
         var identity = tokens.findIdentity(raw)
                 .orElseThrow(() -> new BadCredentialsException("Invalid bearer credentials"));
-        return UsernamePasswordAuthenticationToken.authenticated(Long.toString(identity.userId()), null, List.of());
+        var authorities = identity.admin() ? List.of(new SimpleGrantedAuthority(ADMIN_AUTHORITY))
+                : List.<SimpleGrantedAuthority>of();
+        return UsernamePasswordAuthenticationToken.authenticated(identity, null, authorities);
     }
 
     @Override

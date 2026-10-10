@@ -25,6 +25,10 @@ PBKDF2 passwords and opaque bearer tokens stored only as digests. Local accounts
 require [explicit bootstrap](docs/usage.md#local-login-account); no accounts are
 provisioned by default. Registration, logout and refresh are outside this scope.
 
+USERS-001 Task 2A adds administrator persistence, current authenticated identity
+and atomic last-admin protection. User administration HTTP endpoints remain
+pending Task 2B; see [foundation verification](docs/verification/users-001-foundation.md).
+
 ## Get started
 
 Start and stop the development environment with Docker:
@@ -55,7 +59,9 @@ No host Java, Maven or Bruno is needed. See [usage](docs/usage.md).
 The [declared revision](contract.revision) is an unpublished commit; there is no
 contract release or `v0.1.0` tag. [AUTH-003 local evidence](docs/verification/auth-003.md)
 records completed AUTH-003 and local AUTH-001 conformance against the pinned
-revision. This is separate from the general Java CI badge, which does not run
+historical revision. The current pin targets draft 0.3.0; full `bin/check`
+currently fails at the deliberately deferred USERS-001 HTTP API. This is
+separate from the general Java CI badge, which does not run
 shared Bruno.
 
 The .NET badge reports the .NET workflow, including its shared Bruno checks;

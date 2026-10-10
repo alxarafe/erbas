@@ -254,6 +254,7 @@ bounded 15 "${compose[@]}" exec -T postgres-api psql -U erbas_validation -d erba
 DO $$ BEGIN
     IF (SELECT count(*) FROM flyway_schema_history WHERE version = '1' AND success) <> 1
        OR (SELECT count(*) FROM flyway_schema_history WHERE version = '2' AND success) <> 1
+       OR (SELECT count(*) FROM flyway_schema_history WHERE version = '3' AND success) <> 1
        OR EXISTS (SELECT 1 FROM flyway_schema_history WHERE NOT success)
        OR (SELECT count(*) FROM erbas_persistence_marker WHERE marker_id = 1) <> 1
        OR to_regclass('public.auth_user') IS NULL
@@ -261,7 +262,7 @@ DO $$ BEGIN
         RAISE EXCEPTION 'Missing successful migrations, authentication tables or infrastructure marker';
     END IF;
 END $$;
-SELECT version, success FROM flyway_schema_history WHERE version IN ('1', '2') ORDER BY installed_rank;
+SELECT version, success FROM flyway_schema_history ORDER BY installed_rank;
 SELECT marker_id FROM erbas_persistence_marker;
 SQL
 
@@ -269,18 +270,18 @@ verify_fixture() {
     docker_query 15 'validation account invariants' "${compose[@]}" exec -T \
         --env ERBAS_TEST_EMAIL postgres-api psql -U erbas_validation -d erbas_validation -v ON_ERROR_STOP=1 -At <<'SQL'
 \getenv expected_email ERBAS_TEST_EMAIL
-SELECT (SELECT count(*) FROM auth_user), enabled, password_hash
+SELECT (SELECT count(*) FROM auth_user), enabled, admin, password_hash
 FROM auth_user WHERE email = :'expected_email';
 SQL
-    local fixture_pattern='^1\|t\|(\{pbkdf2-sha256-600000\}[0-9a-f]{96})$'
+    local fixture_pattern='^1\|t\|t\|(\{pbkdf2-sha256-600000\}[0-9a-f]{96})$'
     [[ "$query_result" =~ $fixture_pattern ]] || {
-        echo 'ERROR: validation account is missing, duplicated, disabled or incorrectly encoded.' >&2; return 1;
+        echo 'ERROR: validation account is missing, duplicated, disabled, non-admin or incorrectly encoded.' >&2; return 1;
     }
     fixture_password_hash="${BASH_REMATCH[1]}"
     [[ "$fixture_password_hash" != "$ERBAS_TEST_PASSWORD" ]] || {
         echo 'ERROR: validation password was persisted in cleartext.' >&2; return 1;
     }
-    echo 'VALIDATION_ACCOUNT=verified COUNT=1 ENABLED=true PASSWORD=encoded'
+    echo 'VALIDATION_ACCOUNT=verified COUNT=1 ENABLED=true ADMIN=true PASSWORD=encoded'
 }
 verify_fixture
 
