@@ -39,8 +39,9 @@ For every task, follow this order:
 9. Run post-deployment checks when deployment is authorized and applicable.
 10. Present evidence.
 11. Review the diff to confirm it contains only the approved task's changes.
-12. Close the completed, validated task with a local atomic commit.
-13. Obtain approval before starting another task.
+12. Review documentation impact and update relevant docs when needed.
+13. Close the completed, validated task with a local atomic commit.
+14. Obtain approval before starting another task.
 
 Explicit task approval also authorizes staging and its final local commit once
 implementation, applicable validations and scope review are complete. No second
@@ -228,7 +229,9 @@ boundary and must not be used to store secrets.
 The approved baseline includes Spring Boot, Maven Wrapper, a context test,
 multistage image, non-privileged execution, Actuator, PostgreSQL, JDBC and Flyway's
 infrastructure marker. CONTRACT-001B adds shared liveness and isolated validation.
-Authentication, authorization and business modules require separate approval.
+AUTH-003 adds completed AUTH-001 login, JDBC authentication persistence, PBKDF2
+passwords and opaque bearer tokens stored as digests. Further authentication,
+authorization and business capabilities require separate approval.
 
 ## Shared contract and validation
 
@@ -262,3 +265,48 @@ operations belong in docs, indexed by docs/README.md, without duplicate manuals.
 Public documentation is in English. Badges must reflect verifiable facts or real
 workflows. CI, local conformance and contractual revision are different facts;
 keep links and states current and never use a static green conformance badge.
+
+## Documentation impact review
+
+After implementation, validation and scope review, review whether the task
+changes public behavior, architecture, configuration, usage, development
+workflow, API capabilities, repository status, or documented limitations.
+If it affects any of these areas, update the relevant README and documentation
+as part of the same task before its final local commit. If it does not, do not
+modify documentation merely to record that the review occurred.
+
+Keep README a brief landing page covering current capabilities, how to try them,
+ecosystem relationships, verifiable badges and principal limitations. Keep
+detailed architecture, decisions, processes, configuration, operations and
+verification evidence in docs/; preserve historical reports as historical.
+
+When a task changes a capability or status shared across the ERBAS ecosystem,
+review status references and badges in related repository READMEs. Keep CI,
+local contract conformance and full-stack demo verification distinct. If other
+repositories need updates, handle them as an independent coordinated task
+immediately after the functional change is merged, preferably before the next
+major feature. Do not mix those updates into another repository's functional
+commit or leave them indefinitely pending; obtain the required task approval.
+
+The lifecycle is: approve task, implement, validate, review scope, review
+documentation impact, update relevant docs if needed, local atomic commit,
+then obtain approval for the next task. Existing separate authorization rules
+for push, PR, merge, release, publication and deployment remain unchanged.
+
+## Engineering simplicity
+
+Prefer simple, explicit and maintainable solutions.
+
+Apply these principles:
+
+- **KISS** — keep solutions as simple as the requirements allow.
+- **DRY** — avoid duplicated logic and duplicated sources of truth.
+- **YAGNI** — do not build abstractions, extension points or infrastructure without a concrete current need.
+- **Occam's razor** — when several solutions satisfy the requirements equally well, prefer the one with fewer concepts, dependencies and moving parts.
+- **Reuse before invention** — prefer existing mechanisms, conventions and components before introducing new ones.
+
+Do not introduce layers, helpers, factories, interfaces, services or abstractions merely for architectural symmetry or possible future use.
+
+Simplicity must not compromise correctness, security, performance, clarity, testability or contractual behavior.
+
+When duplication is small and removing it would create a more complex abstraction, prefer the clearer solution over mechanically applying DRY.
