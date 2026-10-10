@@ -34,6 +34,10 @@ public final class BearerAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
+        String path = request.getServletPath();
+        if (path.equals("/api/auth/me") || path.equals("/api/users") || path.startsWith("/api/users/")) {
+            response.setHeader("Cache-Control", "no-store");
+        }
         String header = request.getHeader("Authorization");
         if (header != null) {
             var matcher = BEARER.matcher(header);

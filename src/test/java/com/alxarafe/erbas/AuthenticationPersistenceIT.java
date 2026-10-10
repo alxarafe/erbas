@@ -34,7 +34,7 @@ class AuthenticationPersistenceIT {
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         assertThat(jdbc.queryForList("""
                 SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank
-                """, String.class)).containsExactly("1", "2");
+                """, String.class)).containsExactly("1", "2", "3");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE NOT success",
                 Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM erbas_persistence_marker WHERE marker_id = 1",
@@ -128,7 +128,8 @@ class AuthenticationPersistenceIT {
             "INSERT INTO auth_user (email, password_hash, enabled) VALUES ('', 'encoded', true)",
             "INSERT INTO auth_user (email, password_hash, enabled) VALUES ('test', NULL, true)",
             "INSERT INTO auth_user (email, password_hash, enabled) VALUES ('test', '', true)",
-            "INSERT INTO auth_user (email, password_hash, enabled) VALUES ('test', 'encoded', NULL)"
+            "INSERT INTO auth_user (email, password_hash, enabled) VALUES ('test', 'encoded', NULL)",
+            "INSERT INTO auth_user (email, password_hash, enabled, admin) VALUES ('test', 'encoded', true, NULL)"
     })
     @Transactional
     void requiredUserFieldsAreEnforced(String sql) {

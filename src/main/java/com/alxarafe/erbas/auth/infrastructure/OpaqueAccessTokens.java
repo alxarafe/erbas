@@ -12,7 +12,7 @@ import java.util.HexFormat;
 import java.util.Optional;
 
 import com.alxarafe.erbas.auth.application.LoginUseCase.TokenIssuer;
-import com.alxarafe.erbas.auth.infrastructure.JdbcAuthenticationStore.TokenIdentity;
+import com.alxarafe.erbas.auth.application.UserIdentity;
 
 public final class OpaqueAccessTokens implements TokenIssuer {
 
@@ -40,7 +40,7 @@ public final class OpaqueAccessTokens implements TokenIssuer {
         return raw;
     }
 
-    public Optional<TokenIdentity> findIdentity(String rawToken) {
+    public Optional<UserIdentity> findIdentity(String rawToken) {
         if (rawToken == null || !rawToken.matches("[A-Za-z0-9_-]{43}")) {
             return Optional.empty();
         }

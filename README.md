@@ -13,7 +13,7 @@ Java and .NET converge on a neutral contract so consumers can use either stack.
 | Repository | Responsibility |
 | --- | --- |
 | [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and the sole Bruno collection |
-| [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot backend implementing Health and AUTH-001 with PostgreSQL and Flyway |
+| [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot backend implementing Health, AUTH-001, USERS-001 and COLLECTIONS-001 with PostgreSQL and Flyway |
 | [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | .NET backend implementing Health and AUTH-001 plus platform modules; CI includes shared Bruno |
 | [erbas-client](https://github.com/alxarafe/erbas-client) | Angular 22 client consuming Health and AUTH-001 from either backend; WEB-002 completed |
 
@@ -24,6 +24,13 @@ remains Spring's operational probe. Java implements shared AUTH-001 login with
 PBKDF2 passwords and opaque bearer tokens stored only as digests. Local accounts
 require [explicit bootstrap](docs/usage.md#local-login-account); no accounts are
 provisioned by default. Registration, logout and refresh are outside this scope.
+
+USERS-001 provides current identity and basic administrator-only user creation,
+listing and enabled/admin updates, with atomic last-admin protection. COLLECTIONS-001
+adds offset/limit pagination and stable ordering to the user list. Roles,
+permissions, email changes and password management are outside this scope.
+See [USERS-001 verification](docs/verification/users-001.md) and
+[COLLECTIONS-001 verification](docs/verification/collections-001.md).
 
 ## Get started
 
@@ -55,8 +62,10 @@ No host Java, Maven or Bruno is needed. See [usage](docs/usage.md).
 The [declared revision](contract.revision) is an unpublished commit; there is no
 contract release or `v0.1.0` tag. [AUTH-003 local evidence](docs/verification/auth-003.md)
 records completed AUTH-003 and local AUTH-001 conformance against the pinned
-revision. This is separate from the general Java CI badge, which does not run
-shared Bruno.
+historical revision. The current pin targets draft 0.4.0;
+[COLLECTIONS-001 local evidence](docs/verification/collections-001.md) records full shared
+conformance through `bin/check`. This is separate from the general Java CI
+badge, which does not run shared Bruno.
 
 The .NET badge reports the .NET workflow, including its shared Bruno checks;
 it does not establish Java conformance. Angular client CI verifies its own

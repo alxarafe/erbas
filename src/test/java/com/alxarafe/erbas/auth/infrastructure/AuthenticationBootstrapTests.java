@@ -33,7 +33,7 @@ class AuthenticationBootstrapTests {
         var store = mock(JdbcAuthenticationStore.class);
         var encoder = mock(PasswordEncoder.class);
         var runner = new AuthenticationBootstrapConfiguration()
-                .authenticationBootstrap(store, encoder, environment, "local@example.test", "local-demo-only");
+                .authenticationBootstrap(store, encoder, environment, "local@example.test", "local-demo-only", false);
         assertThatThrownBy(() -> runner.run(new DefaultApplicationArguments()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Authentication bootstrap requires only validation or development profile");
@@ -49,7 +49,7 @@ class AuthenticationBootstrapTests {
         var encoder = mock(PasswordEncoder.class);
         var runner = new AuthenticationBootstrapConfiguration().authenticationBootstrap(store, encoder, environment,
                 missing.equals("password") ? "validation@example.test" : "",
-                missing.equals("email") ? "validation-only" : "");
+                missing.equals("email") ? "validation-only" : "", false);
         assertThatThrownBy(() -> runner.run(new DefaultApplicationArguments()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Authentication bootstrap requires nonempty email and password");

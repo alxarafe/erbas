@@ -16,7 +16,8 @@ public class AuthenticationBootstrapConfiguration {
     @ConditionalOnProperty(prefix = "erbas.auth.bootstrap", name = "enabled", havingValue = "true")
     public ApplicationRunner authenticationBootstrap(JdbcAuthenticationStore store, PasswordEncoder encoder,
             Environment environment, @Value("${erbas.auth.bootstrap.email}") String email,
-            @Value("${erbas.auth.bootstrap.password}") String password) {
+            @Value("${erbas.auth.bootstrap.password}") String password,
+            @Value("${erbas.auth.bootstrap.admin:false}") boolean admin) {
         // ApplicationRunner executes after context initialization, including Flyway migrations.
         return arguments -> {
             String[] profiles = environment.getActiveProfiles();
@@ -28,11 +29,12 @@ public class AuthenticationBootstrapConfiguration {
             }
             var user = store.findUserByEmail(email);
             if (user.isEmpty()) {
-                store.createBootstrapUserIfAbsent(email, encoder.encode(password));
+                store.createBootstrapUserIfAbsent(email, encoder.encode(password), admin);
                 user = store.findUserByEmail(email);
             }
             boolean matches = false;
-            if (user.isPresent() && user.orElseThrow().enabled()) {
+            if (user.isPresent() && user.orElseThrow().enabled()
+                    && store.findUserById(user.orElseThrow().id()).orElseThrow().admin() == admin) {
                 try {
                     matches = encoder.matches(password, user.orElseThrow().passwordHash());
                 } catch (IllegalArgumentException | IndexOutOfBoundsException unusableEncoding) {

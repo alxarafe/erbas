@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.util.Map;
 
 import com.alxarafe.erbas.auth.application.LoginUseCase;
+import com.alxarafe.erbas.auth.application.UserAdministration;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -58,6 +59,11 @@ public class AuthenticationConfiguration {
     }
 
     @Bean
+    public UserAdministration userAdministration(JdbcAuthenticationStore store, PasswordEncoder encoder) {
+        return new UserAdministration(store, encoder::encode);
+    }
+
+    @Bean
     public AuthenticationManager bearerAuthenticationManager(OpaqueAccessTokens tokens) {
         return new ProviderManager(new BearerAuthenticationProvider(tokens));
     }
@@ -81,10 +87,20 @@ public class AuthenticationConfiguration {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(publicEndpoints).permitAll()
+                        .requestMatchers(paths.matcher("/api/users"), paths.matcher("/api/users/**"))
+                            .hasAuthority(BearerAuthenticationProvider.ADMIN_AUTHORITY)
                         .anyRequest().authenticated())
                 .exceptionHandling(errors -> errors.authenticationEntryPoint((request, response, failure) -> {
                     response.setStatus(401);
                     response.setHeader("WWW-Authenticate", "Bearer");
+                    response.setHeader("Cache-Control", "no-store");
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"code\":\"unauthorized\"}");
+                }).accessDeniedHandler((request, response, failure) -> {
+                    response.setStatus(403);
+                    response.setHeader("Cache-Control", "no-store");
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"code\":\"forbidden\"}");
                 }))
                 .addFilterBefore(new BearerAuthenticationFilter(bearerAuthenticationManager, publicEndpoints),
                         AnonymousAuthenticationFilter.class)

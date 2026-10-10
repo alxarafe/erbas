@@ -84,7 +84,8 @@ as startup). No database port is published by either lifecycle command.
 Flyway reads `src/main/resources/db/migration` at startup. V1 creates
 `erbas_persistence_marker` and inserts marker 1. V2 adds the minimal authentication
 persistence (`auth_user` and `auth_access_token`) without seeding any users or
-tokens. Login and stateless bearer authentication are implemented. Account
+tokens. V3 adds non-null `admin`, defaulting existing users to false. Login and
+stateless bearer authentication are implemented. Account
 bootstrap is explicit and runs after migrations; it is not part of Flyway.
 No ORM, JPA or Hibernate is present.
 The multi-stage runtime runs as user 10001; Compose uses
@@ -110,6 +111,50 @@ against the issuing Java backend. It is opaque, not JWT; Java and .NET tokens
 are not interoperable. The contract lives exclusively in `erbas-contract`.
 No registration, logout, refresh, roles or business permissions are implemented.
 See [AUTH-003 verification](verification/auth-003.md).
+
+Each protected request resolves current `id`, `email`, `enabled` and `admin`
+from PostgreSQL. Disabling a user rejects existing bearers without deleting
+tokens; admin changes update the Spring Security principal and `ADMIN` authority
+on the next request. Java implements USERS-001 and COLLECTIONS-001 against the pinned draft 0.4.0.
+
+### Basic user administration
+
+`GET /api/auth/me` returns the already authenticated identity. The public user
+object has exactly `id` (opaque string), `email`, `enabled` and `admin`.
+`GET /api/users`, `GET /api/users/{id}`, `POST /api/users` and
+`PATCH /api/users/{id}` require the central Spring Security `ADMIN` authority.
+All these resources return JSON with `Cache-Control: no-store`, including errors.
+
+The user list returns exactly `items`, `offset`, `limit`, `total` and `order`.
+Optional `offset` defaults to 0 and must be a nonnegative integer. Optional
+`limit` defaults to 50 and must be an integer from 1 to 100. Invalid values
+return `400 invalid_request` after authentication and administrator authorization,
+without clamping. The server orders by id ASC before applying the window and
+reports `order: [{"field":"id","direction":"asc"}]`; IDs remain opaque.
+`total` counts all users, including disabled accounts, before pagination, while
+`limit` remains the requested capacity. Empty or beyond-total windows return
+200 with `items: []` and complete metadata. No custom ordering or filters exist.
+See [COLLECTIONS-001 evidence](verification/collections-001.md).
+
+Creation takes exactly required `email`, `password` and Boolean `admin`, and
+always enables the account. Email is a nonempty string without normalization;
+exact duplicates conflict. Passwords contain 12–256 Unicode code points, without
+trimming or composition rules, and use the existing PBKDF2 encoder. PATCH accepts
+only one or both Boolean fields `enabled` and `admin`. It cannot change email
+or passwords. There is no DELETE, registration, password management,
+search, roles or granular permission system.
+
+Closed errors are `400 invalid_request`, protected `401 unauthorized`
+(with `WWW-Authenticate: Bearer`), `403 forbidden` (without that header),
+`404 user_not_found`, `409 email_conflict` and `409 last_admin`.
+Administrative authorization occurs before lookup. Unusable Java IDs also
+return `user_not_found`, without parsing details. Login retains AUTH-001 errors.
+
+The last enabled admin cannot be disabled or demoted. Self-disable/demotion is
+allowed when another enabled admin remains; the current update succeeds and
+subsequent bearer requests reflect the change. State updates reuse Task 2A's
+serialized PostgreSQL transaction. See [verification](verification/users-001.md)
+and the [shared contract](https://github.com/alxarafe/erbas-contract/blob/42e0c5ad81902a355fe01d6635466717f46b9dfd/docs/users-001.md).
 
 ### Local login account
 
@@ -138,9 +183,12 @@ printf '%s' '{"email":"local@example.test","password":"local-demo-only"}' |
     http://localhost:8080/api/auth/login
 ```
 
+Set `ERBAS_AUTH_BOOTSTRAP_ADMIN=true` explicitly to create a controlled demo
+administrator; it defaults to false and is forwarded by development Compose.
 The account persists with the development volume. Repeated startup with the same
-credentials reuses it without changing its ID/hash. An existing disabled account
-or different password fails bootstrap safely; it is never overwritten or
+credentials and admin flag reuses it without changing its ID/hash/state.
+An existing disabled account, different password or different admin flag fails
+bootstrap safely; it is never promoted, demoted, overwritten or
 reactivated. Use a fresh local email for a separate demo identity. This is not a
 password reset or account management API. Removing bootstrap variables prevents
 future seeding; it does not delete accounts or volumes.
@@ -171,26 +219,32 @@ Revision and cleanliness are rechecked immediately before each contract call.
 The check validates Compose, builds the unchanged Dockerfile and executes the
 regular native suite in a fresh container even with cached layers. Two fresh
 PostgreSQL instances must have empty public schemas. Maven explicitly selects
-`HealthIntegrationIT,AuthenticationPersistenceIT,AuthenticationIntegrationIT,AuthenticationBootstrapIT`
+`HealthIntegrationIT,AuthenticationPersistenceIT,AuthenticationIntegrationIT,AuthenticationBootstrapIT,UsersFoundationIT,UsersIntegrationIT`
 against its own PostgreSQL,
-with real Flyway and JDBC. The persistence tests verify V1 and V2 exactly once,
+with real Flyway and JDBC. The persistence tests verify V1, V2 and V3 exactly once,
 no authentication seed data, JDBC round trips, constraints, and token lookup
 eligibility at expiry and for disabled users. Tests roll back their fixture data.
 Authentication integration tests additionally verify login, real bearer use through
 the security chain, hash storage, deterministic expiry and equivalent failures.
-Bootstrap integration verifies encoded local provisioning, idempotence and
-preservation of existing accounts. Bootstrap remains off for the native suite;
-integration fixtures roll back and never use the development database.
-The existing context test and new MVC test remain in the regular native suite.
+Bootstrap integration verifies encoded local/admin provisioning, idempotence and
+preservation of existing accounts. USERS-001 adds synchronized real-PostgreSQL
+concurrency checks and V2-to-V3 upgrade preservation. Bootstrap remains off for
+the native suite. Ordinary fixtures roll back; committed concurrency fixtures
+and the owned upgrade schema are cleaned explicitly in the isolated database.
+The development database is never used.
+The context and strict login/user MVC tests remain in the regular native suite.
+User integration tests exercise HTTP creation with real hashing, disabled-token
+rejection, re-enabling, promotion/demotion with existing tokens, self-updates
+and last-admin error mapping.
 
 Java starts against the separate API database. Bounded health waiting, real
-Actuator HTTP and SQL assertions verify V1 and V2 once, no failed migrations,
+Actuator HTTP and SQL assertions verify V1, V2 and V3 once, no failed migrations,
 marker 1 and both auth tables. `bin/check` replaces any supplied test credentials
 with a per-run validation email and a password generated from 32 bytes of host
 `/dev/urandom` (hex encoded). Validation Compose injects them only into the app's
 explicit validation bootstrap; the runner receives them by environment names.
 No credentials are build arguments or image contents. SQL checks exactly one
-enabled fixture account, the PBKDF2 encoding and inequality with the clear password,
+enabled administrator fixture account, the PBKDF2 encoding and inequality with the clear password,
 without printing the account, password or hash. The
 script then invokes the existing contract interface with its generated network:
 
@@ -199,10 +253,18 @@ script then invokes the existing contract interface with its generated network:
 ```
 
 This illustrates the internal call, not another complete validation entry point.
-The sole shared collection runs once with PostgreSQL available: Health plus all
-login cases (15 requests, 45 Bruno tests at the pinned revision), without skips.
+The sole shared collection is invoked with PostgreSQL available, without skips.
+The pinned draft 0.4.0 contains 82 requests and 313 named checks, including
+USERS-001 and COLLECTIONS-001. It requires disposable isolated validation data and creates unique
+users; do not run this mutating suite against production. No conformance skip
+switch is provided. See [COLLECTIONS-001 evidence](verification/collections-001.md).
 The runner withholds detailed Bruno output to protect credentials and tokens.
-After stopping only API PostgreSQL and inspecting its stopped state, `bin/check`
+After shared conformance, SQL verifies that the validation admin is preserved,
+created disposable users remain enabled non-admins, all password hashes use
+PBKDF2, token references are valid, at least one enabled admin remains and
+Flyway history is valid. It does not assume a fixed total user count.
+`bin/check` then stops
+only API PostgreSQL and inspects its stopped state. It then
 directly verifies `/health`: HTTP 200, `application/json`, exact body
 `{"status":"ok"}`. Login/Bruno is not repeated with DB down. Actuator's dependency
 health is inspected separately and can return 503 without invalidating liveness.
