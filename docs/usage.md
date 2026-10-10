@@ -183,6 +183,12 @@ printf '%s' '{"email":"local@example.test","password":"local-demo-only"}' |
     http://localhost:8080/api/auth/login
 ```
 
+The client-owned full-stack demo orchestration maps its effective shared demo
+administrator to these bootstrap variables and `ERBAS_AUTH_BOOTSTRAP_ADMIN=true`.
+Java remains independently runnable and does not read a contract checkout for
+development startup; see the client
+[demo guide](https://github.com/alxarafe/erbas-client/blob/main/docs/full-stack-development.md).
+
 Set `ERBAS_AUTH_BOOTSTRAP_ADMIN=true` explicitly to create a controlled demo
 administrator; it defaults to false and is forwarded by development Compose.
 The account persists with the development volume. Repeated startup with the same
