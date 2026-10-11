@@ -115,7 +115,8 @@ See [AUTH-003 verification](verification/auth-003.md).
 Each protected request resolves current `id`, `email`, `enabled` and `admin`
 from PostgreSQL. Disabling a user rejects existing bearers without deleting
 tokens; admin changes update the Spring Security principal and `ADMIN` authority
-on the next request. Java implements USERS-001 and COLLECTIONS-001 against the pinned draft 0.4.0.
+on the next request. Java implements USERS-001 and COLLECTIONS-001 against the
+pinned published release `v0.4.0`.
 
 ### Basic user administration
 
@@ -154,7 +155,7 @@ The last enabled admin cannot be disabled or demoted. Self-disable/demotion is
 allowed when another enabled admin remains; the current update succeeds and
 subsequent bearer requests reflect the change. State updates reuse Task 2A's
 serialized PostgreSQL transaction. See [verification](verification/users-001.md)
-and the [shared contract](https://github.com/alxarafe/erbas-contract/blob/42e0c5ad81902a355fe01d6635466717f46b9dfd/docs/users-001.md).
+and the [shared contract](https://github.com/alxarafe/erbas-contract/blob/v0.4.0/docs/users-001.md).
 
 ### Local login account
 
