@@ -240,11 +240,13 @@ and its single Bruno collection is executable conformance. This backend cannot
 change it unilaterally or duplicate the collection. Never add implementation
 branches to the shared contract.
 
-Declare the implemented revision in `contract.revision`. The current commit is
-unpublished, not a released version. Require an explicit directory and unpublished
-checkout opt-in. Verify identity, exact HEAD and tracked/nonignored cleanliness
-before every shared test call. Allow ignored files and preserve them. Never pull,
-checkout or modify the supplied contract repository.
+Declare the implemented published release in `contract.revision`, currently
+`v0.4.0`. Require an explicit contract directory. Verify repository root, GitHub
+origin, tracked/nonignored cleanliness, the release tag's immutable commit
+(`839255ea54610ccf711b29bd096ea294a1ebc3fc` for `v0.4.0`) and matching HEAD
+before provisioning and every shared test call. No unpublished-checkout opt-in
+is required. Allow ignored files and preserve them. Never fetch, pull, checkout
+or modify the supplied contract repository.
 
 `./bin/check` is the sole complete backend validation entry point: native tests,
 Java integration with clean PostgreSQL, final image, real migrations, Actuator,
@@ -252,8 +254,9 @@ and shared Bruno with a different clean PostgreSQL. Keep bounded waits, nonzero
 failure propagation, exact ownership and cleanup on success and failure. Fault
 controls belong only to host verification, never production application behavior.
 
-Failed conformance must block publication/deployment. CONTRACT-002 will integrate
-this authority into CI; current general CI does not claim shared conformance.
+Failed conformance must block publication/deployment. GitHub Java CI invokes
+the same `./bin/check` authority with a separate `alxarafe/erbas-contract` checkout
+at the published `v0.4.0` tag. Shared conformance and cleanup are mandatory.
 Task approval authorizes its final local commit under the lifecycle rules above.
 Do not push, create PRs, merge, tag, release, publish or deploy without separate
 express authorization. Preserve unrelated changes and resources.

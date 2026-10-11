@@ -32,15 +32,11 @@ docker_query() {
 docker_query 15 'Compose availability' docker compose version
 
 check_contract() {
-    [[ "${ERBAS_CONTRACT_ALLOW_UNRELEASED:-}" == 1 ]] || {
-        echo 'ERROR: set ERBAS_CONTRACT_ALLOW_UNRELEASED=1 for the pinned unpublished revision.' >&2
-        return 2
-    }
     [[ -n "${ERBAS_CONTRACT_DIR:-}" && -d "$ERBAS_CONTRACT_DIR" ]] || {
         echo 'ERROR: ERBAS_CONTRACT_DIR must identify an explicit contract checkout.' >&2
         return 2
     }
-    local directory revision origin checkout_status
+    local directory revision release_commit origin checkout_status
     directory="$(cd "$ERBAS_CONTRACT_DIR" && pwd -P)"
     [[ "$(git --no-optional-locks -C "$directory" rev-parse --show-toplevel)" == "$directory" ]] || {
         echo 'ERROR: use the contract repository root.' >&2; return 2;
@@ -51,8 +47,17 @@ check_contract() {
         *) echo 'ERROR: unexpected contract origin.' >&2; return 2 ;;
     esac
     revision="$(cat "$root/contract.revision")"
-    [[ "$revision" =~ ^[0-9a-f]{40}$ && "$(git -C "$directory" rev-parse HEAD)" == "$revision" ]] || {
-        echo 'ERROR: contract checkout does not match contract.revision.' >&2; return 2;
+    [[ "$revision" == v0.4.0 ]] || {
+        echo 'ERROR: unsupported release in contract.revision.' >&2; return 2;
+    }
+    release_commit="$(git -C "$directory" rev-parse --verify "refs/tags/$revision^{commit}")" || {
+        echo 'ERROR: contract checkout is missing the configured release tag.' >&2; return 2;
+    }
+    [[ "$release_commit" == 839255ea54610ccf711b29bd096ea294a1ebc3fc ]] || {
+        echo 'ERROR: contract release tag does not resolve to its immutable commit.' >&2; return 2;
+    }
+    [[ "$(git -C "$directory" rev-parse HEAD)" == "$release_commit" ]] || {
+        echo 'ERROR: contract checkout HEAD does not match the configured release tag.' >&2; return 2;
     }
     checkout_status="$(git --no-optional-locks -C "$directory" status --porcelain=v1 --untracked-files=all)" || return 2
     [[ -z "$checkout_status" ]] || {
@@ -61,6 +66,7 @@ check_contract() {
     [[ -x "$directory/bin/test" ]] || { echo 'ERROR: missing public contract runner.' >&2; return 2; }
     contract_dir="$directory"
     echo "CONTRACT_REVISION=$revision"
+    echo "CONTRACT_COMMIT=$release_commit"
 }
 check_contract
 echo 'CONTRACT_PREFLIGHT=passed PHASE=initial'

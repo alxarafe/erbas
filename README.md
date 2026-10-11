@@ -4,7 +4,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-[![Java backend CI](https://github.com/alxarafe/erbas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alxarafe/erbas/actions/workflows/ci.yml)
+[![Java backend CI / shared conformance](https://github.com/alxarafe/erbas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alxarafe/erbas/actions/workflows/ci.yml)
 [![.NET backend CI / shared conformance](https://github.com/alxarafe/alxarafe-dotnet/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alxarafe/alxarafe-dotnet/actions/workflows/ci.yml)
 [![Angular client CI](https://github.com/alxarafe/erbas-client/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alxarafe/erbas-client/actions/workflows/ci.yml)
 
@@ -52,7 +52,6 @@ authority, using the explicitly supplied contract:
 
 ```bash
 ERBAS_CONTRACT_DIR=/path/to/checkout/erbas-contract \
-ERBAS_CONTRACT_ALLOW_UNRELEASED=1 \
 ./bin/check
 ```
 
@@ -60,13 +59,14 @@ No host Java, Maven or Bruno is needed. See [usage](docs/usage.md).
 
 ## Status and documentation
 
-The [declared revision](contract.revision) is an unpublished commit; there is no
-contract release or `v0.1.0` tag. [AUTH-003 local evidence](docs/verification/auth-003.md)
-records completed AUTH-003 and local AUTH-001 conformance against the pinned
-historical revision. The current pin targets draft 0.4.0;
-[COLLECTIONS-001 local evidence](docs/verification/collections-001.md) records full shared
-conformance through `bin/check`. This is separate from the general Java CI
-badge, which does not run shared Bruno.
+Java implements the published ERBAS Contract `v0.4.0`, recorded in
+[contract.revision](contract.revision). The supplied checkout must be clean and
+its release tag and HEAD must resolve to the expected immutable commit.
+`./bin/check` is authoritative locally and in GitHub Actions, where shared Bruno
+conformance against the same published release is mandatory. The CI badge
+reports workflow results; [AUTH-003](docs/verification/auth-003.md) and
+[COLLECTIONS-001](docs/verification/collections-001.md) retain historical local
+verification evidence against earlier revisions.
 
 The .NET badge reports the .NET workflow, including its shared Bruno checks;
 it does not establish Java conformance. Angular client CI verifies its own
@@ -76,8 +76,7 @@ records WEB-002 integration separately from those CI results.
 
 Browse the [documentation index](docs/README.md),
 [integration decision](docs/decisions/0001-java-health-conformance.md) and
-[working agreement](AGENTS.md). CONTRACT-002 will add mandatory CI conformance
-and deliberate consumption of a published contract version.
+[working agreement](AGENTS.md).
 
 ## License
 
