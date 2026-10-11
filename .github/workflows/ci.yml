@@ -9,38 +9,26 @@ permissions:
 
 jobs:
   docker-build-and-test:
-    name: Docker build and test
+    name: Authoritative backend and shared contract validation
     runs-on: ubuntu-24.04
-    env:
-      COMPOSE_FILE: compose.yaml:docker/compose.ci.yaml
 
     steps:
-      - name: Check out repository
+      - name: Check out Java
         uses: actions/checkout@v7.0.1
+        with:
+          path: erbas
+          persist-credentials: false
 
-      - name: Validate Compose configuration
-        run: docker compose -p erbas-ci config --quiet
+      - name: Check out published contract v0.4.0
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: alxarafe/erbas-contract
+          ref: v0.4.0
+          path: erbas-contract
+          persist-credentials: false
 
-      - name: Compile and run unit tests
-        run: docker compose -p erbas-ci run --rm build
-
-      - name: Build runtime image
-        run: docker compose -p erbas-ci build app
-
-      - name: Start PostgreSQL and application
-        run: docker compose -p erbas-ci up --detach --build app
-
-      - name: Verify application health
-        run: >-
-          docker compose -p erbas-ci exec -T app
-          sh -c 'until curl --fail --silent http://localhost:8080/actuator/health; do sleep 2; done'
-
-      - name: Verify Flyway migration
-        run: >-
-          docker compose -p erbas-ci exec -T postgres
-          psql -U erbas -d erbas_dev -v ON_ERROR_STOP=1
-          -c "SELECT version, success FROM flyway_schema_history WHERE version = '1' AND success;"
-
-      - name: Clean up Compose resources
-        if: always()
-        run: docker compose -p erbas-ci down --volumes --remove-orphans
+      - name: Validate backend and shared conformance
+        working-directory: erbas
+        env:
+          ERBAS_CONTRACT_DIR: ${{ github.workspace }}/erbas-contract
+        run: ./bin/check

@@ -12,9 +12,11 @@
 | [AUTH-003 persistence verification](verification/auth-003-persistence.md) | Historical task 1 schema, JDBC decisions and isolated tests |
 | [AUTH-003 login verification](verification/auth-003-login.md) | Historical task 2 login and Spring Security verification |
 | [Working agreement](../AGENTS.md) | Persistent repository rules |
-| [Contract revision](../contract.revision) | Exact unpublished commit |
+| [Contract revision](../contract.revision) | Implemented published release v0.4.0 |
 
 Workflows run in their responsible repositories. Their badges can be displayed
-elsewhere without duplicating tests. General CI, the declared contractual revision
-and a conformance result are distinct. CONTRACT-002 will connect complete Java
-validation to CI; the contract repository will progressively record compatibility.
+elsewhere without duplicating tests. Workflow status, the declared contractual
+release and a conformance result are distinct. Java CI invokes the complete
+`./bin/check`, including mandatory shared conformance against `v0.4.0`;
+see [validation and CI](usage.md#complete-validation). Verification reports
+retain their historical source revisions and results.

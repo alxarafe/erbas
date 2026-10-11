@@ -65,8 +65,8 @@ The health URL is `http://127.0.0.1:48080/health`. For example,
 `ERBAS_JAVA_PORT=49080 ./bin/up` publishes the same internal
 8080 on loopback host port 49080. `ERBAS_APP_PORT` is no longer used. See the
 [shared port convention](https://github.com/alxarafe/erbas-contract/blob/main/docs/development-ports.md).
-The CI overlay `docker/compose.ci.yaml` removes the app's host publication;
-CI and complete isolated validation access services inside Docker.
+CI and complete isolated validation use the standalone
+`docker/compose.validation.yaml`, which publishes no host ports.
 
 To query Health without installing host curl, while the default environment runs:
 
@@ -210,17 +210,32 @@ by login; no credentials are logged. TTL is also forwarded by development Compos
 
 ```bash
 ERBAS_CONTRACT_DIR=/path/to/checkout/erbas-contract \
-ERBAS_CONTRACT_ALLOW_UNRELEASED=1 \
 ./bin/check
 ```
 
 `bin/check` is the sole complete validation entry point. Supply the root of
-`alxarafe/erbas-contract` at the exact commit in `contract.revision`. This is an
-unpublished revision, not a released version. There is no sibling default,
-automatic download, pull or checkout. Missing opt-in, wrong origin/revision,
-staged/unstaged tracked changes or nonignored untracked files are rejected before
-resources are created. Ignored files are allowed and neither changed nor deleted.
-Revision and cleanliness are rechecked immediately before each contract call.
+`alxarafe/erbas-contract` at the published release in `contract.revision`,
+currently `v0.4.0`. The local `refs/tags/v0.4.0^{commit}` and checkout HEAD must
+both resolve to `839255ea54610ccf711b29bd096ea294a1ebc3fc`. Repository root,
+GitHub origin, tag resolution, HEAD and cleanliness are checked before resources
+are created and immediately before each contract call. Missing tags, unexpected
+tag targets, wrong HEAD, staged/unstaged tracked changes and nonignored untracked
+files are rejected. Ignored files are allowed and neither changed nor deleted.
+There is no sibling default, automatic download, fetch, pull or checkout, and no
+unpublished-release opt-in. The caller supplies the checkout; Java only verifies it.
+For example, prepare a separate checkout with Git:
+
+```bash
+git clone --branch v0.4.0 https://github.com/alxarafe/erbas-contract.git /path/to/checkout/erbas-contract
+```
+
+GitHub Actions checks out Java into `erbas/` and `alxarafe/erbas-contract` at
+`ref: v0.4.0` into the sibling `erbas-contract/`. It runs `./bin/check` from
+`erbas/` with `ERBAS_CONTRACT_DIR` pointing to that sibling. Contract files are
+outside Java's working tree and Docker build context. The workflow uses read-only
+repository permissions and does not persist checkout credentials. No host Java,
+Maven, Node or Bruno is required. All validation and cleanup remain owned by
+`bin/check`; any preflight, test, startup, conformance or cleanup failure fails CI.
 
 The check validates Compose, builds the unchanged Dockerfile and executes the
 regular native suite in a fresh container even with cached layers. Two fresh
@@ -260,7 +275,7 @@ script then invokes the existing contract interface with its generated network:
 
 This illustrates the internal call, not another complete validation entry point.
 The sole shared collection is invoked with PostgreSQL available, without skips.
-The pinned draft 0.4.0 contains 82 requests and 313 named checks, including
+The pinned published v0.4.0 contains 82 requests and 313 named checks, including
 USERS-001 and COLLECTIONS-001. It requires disposable isolated validation data and creates unique
 users; do not run this mutating suite against production. No conformance skip
 switch is provided. See [COLLECTIONS-001 evidence](verification/collections-001.md).
@@ -317,7 +332,6 @@ daemon cannot guarantee cleanup: retain the run identity for scoped recovery.
 
 ```bash
 ERBAS_CONTRACT_DIR=/path/to/checkout/erbas-contract \
-ERBAS_CONTRACT_ALLOW_UNRELEASED=1 \
 ./tests/check-lifecycle.sh
 ```
 
@@ -335,10 +349,9 @@ Run concurrency deliberately, not during ordinary `bin/check`:
 
 ```bash
 ERBAS_CONTRACT_DIR=/path/to/checkout/erbas-contract \
-ERBAS_CONTRACT_ALLOW_UNRELEASED=1 \
 ./tests/check-lifecycle.sh concurrent
 ```
 
-Existing CI retains its original controls and does not yet invoke shared Bruno.
-CONTRACT-002 owns mandatory CI integration and published-version consumption.
+GitHub Actions invokes the same authoritative `./bin/check` against published
+`v0.4.0`, including mandatory shared Bruno conformance.
 Local success does not authorize publication or deployment.

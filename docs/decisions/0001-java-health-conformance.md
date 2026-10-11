@@ -1,6 +1,9 @@
 # ADR 0001: Java shared health conformance
 
 Status: Approved for CONTRACT-001B; actual results are recorded separately.
+The unpublished-pin and deferred-CI decisions below are historical and were
+superseded by CONTRACT-002C: Java now consumes published `v0.4.0`, and CI invokes
+the complete `./bin/check`. Current procedures are in [usage](../usage.md#complete-validation).
 
 ## Decision
 
