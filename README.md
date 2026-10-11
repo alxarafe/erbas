@@ -16,7 +16,7 @@ Java and .NET converge on a neutral contract so consumers can use either stack.
 | [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and the sole Bruno collection |
 | [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot backend implementing Health, AUTH-001, USERS-001 and COLLECTIONS-001 with PostgreSQL and Flyway |
 | [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | .NET backend implementing Health, AUTH-001, USERS-001 and COLLECTIONS-001 plus platform modules; CI requires shared Bruno against v0.4.0 |
-| [erbas-client](https://github.com/alxarafe/erbas-client) | Angular 22 client consuming Health, AUTH-001 and the administrator-only USERS-001 collection with COLLECTIONS-001 pagination from either backend; WEB-003A completed |
+| [erbas-client](https://github.com/alxarafe/erbas-client) | Angular 22 client consuming Health, AUTH-001 and the read-only USERS-001 profile/list/detail slice with COLLECTIONS-001 pagination from either backend; WEB-003B completed |
 
 The scope includes JDBC authentication persistence, minimal login and opaque
 bearer authentication through Spring Security. `GET /health` returns
@@ -33,10 +33,12 @@ permissions, email changes and password management are outside this scope.
 See [USERS-001 verification](docs/verification/users-001.md) and
 [COLLECTIONS-001 verification](docs/verification/collections-001.md).
 
-The client implements the collection/list slice; user creation, editing and
-detail views remain unimplemented. See its
-[WEB-003A guide](https://github.com/alxarafe/erbas-client/blob/main/docs/full-stack-development.md#authenticated-user-list-web-003a)
-for session, pagination and error behavior.
+The client implements the read-only USERS-001 slice: `GET /api/auth/me`, paged
+administrator `GET /api/users` and `GET /api/users/{id}` detail. Login loads the
+current profile; `User.admin` controls administrator UI visibility. The bearer
+remains backend-bound and memory-only. User creation/update UI remains pending.
+See its [WEB-003B guide](https://github.com/alxarafe/erbas-client/blob/main/docs/full-stack-development.md#current-profile-and-user-detail-web-003b)
+for profile, detail, session, pagination and error behavior.
 
 ## Get started
 
@@ -75,8 +77,8 @@ verification evidence against earlier revisions.
 
 The .NET badge reports the .NET workflow, including its shared Bruno checks;
 it does not establish Java conformance. Angular client CI verifies its own
-tests, build, runtime and isolated Health/login/users proxies. The client's
-[real dual-backend demo evidence](https://github.com/alxarafe/erbas-client/blob/main/docs/full-stack-development.md#web-002-integration-verification-2026-10-09)
+tests, build, runtime and isolated Health/login/profile/list/detail proxies.
+The client's [real dual-backend demo evidence](https://github.com/alxarafe/erbas-client/blob/main/docs/full-stack-development.md#web-002-integration-verification-2026-10-09)
 records WEB-002 integration separately from those CI results. Client CI does
 not perform backend shared-conformance validation.
 
