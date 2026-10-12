@@ -103,11 +103,47 @@ instances. Ordinary checks continue to read committed database state.
 
 Disabling never deletes module data, tables or configuration, reverts migrations,
 unloads code, or changes technical initialization. All available modules still
-initialize, including disabled ones. `requireEnabled` provides an internal guard
-with a clear exception; no HTTP status mapping, middleware or management API is
-introduced. Existing endpoints remain unchanged. Future HTTP, jobs, event consumers
-and inter-module capabilities must consult this same authority instead of treating
-INITIALIZED as permission to execute functional work.
+initialize, including disabled ones. `requireEnabled` provides the shared internal
+guard now used by the platform HTTP gate. Module administration HTTP remains out of
+scope; INITIALIZED never substitutes for permission to execute functional work.
+
+## Functional HTTP gating
+
+DISABLED means available and technically initialized, but functional entry is
+blocked. Endpoints, routes, services and code remain registered; disabling does
+not delete data or revert migrations. A request checks `ModuleStateService` once
+at its module boundary, using the stable descriptor ID. It never reads the store
+directly or captures an enabled flag during startup. Disable/re-enable takes effect
+on the next request without restart, route rebuilding or reinitialization.
+PostgreSQL remains the authority; no enabled-state cache is introduced.
+
+The observable order is authentication, authorization, module gate, endpoint.
+Existing protected endpoints return their normal 401 for invalid/missing credentials
+and 403 for insufficient permissions before reaching the gate. An authorized caller
+to a disabled module receives HTTP 503 with JSON exactly:
+
+```json
+{"code":"module_disabled"}
+```
+
+The response sets `Cache-Control: no-store`, with no `WWW-Authenticate`,
+`Retry-After`, module ID, internal message or stack trace. A public module endpoint
+also passes through the gate, without an authentication requirement of its own.
+
+`ModuleDisabledException` belongs to Modularity and retains the module ID only
+internally. `requireEnabled`/`RequireEnabledAsync` throws it only for an available
+module with a persisted false flag. Unavailable IDs, missing state and unexpected
+system failures retain their distinct internal errors; the HTTP gate does not
+misrepresent them as administrative deactivation. The gate never changes state
+or bypasses dependency validation.
+
+CORE remains outside this gate: Health, authentication/login, user administration,
+the runtime and future recovery/administration infrastructure are not functional
+modules. All available modules still initialize technically even when disabled.
+Future scheduled jobs, event consumers, AI capabilities and other externally
+triggered internal actions must use the same `ModuleStateService.requireEnabled`
+authority at their entry boundary; no such execution mechanisms are implemented.
+Future external modules receive the same HTTP semantics through the public adapters.
 
 ## Future lifecycle, not implemented
 
@@ -157,6 +193,21 @@ context is refreshed. The current bean source alone does not solve that bootstra
 requirement. No external loader, classloader API, dynamic bean registration or
 manual classpath scanner is implemented.
 
+### Java HTTP adapter
+
+`com.alxarafe.erbas.modularity.http.ModuleEndpoint` is a runtime, class-level
+annotation for an entire MVC controller. Reuse the module's named `ID` constant
+in both its descriptor and `@ModuleEndpoint(ID)`; never derive identity from a
+controller class, package or route. The platform registers `ModuleEndpointInterceptor`
+through a `WebMvcConfigurer` bean. Spring Security's filter chain runs before MVC;
+the interceptor resolves the controller annotation and calls only `requireEnabled`.
+Successful checks are retained only in the current servlet request so an async
+MVC redispatch does not repeat the boundary check; the next request reads current
+state again.
+Only `ModuleDisabledException` is translated to the disabled HTTP response.
+Unannotated CORE controllers and non-controller handlers pass through unchanged.
+No production fake module/controller or new OpenAPI infrastructure is added.
+
 ## Verification
 
 The existing graph/runtime tests are adapted to descriptors. Registry tests cover
@@ -167,7 +218,15 @@ source whose module is not a Spring bean. PostgreSQL-backed `ModuleStateIT`
 covers defaults, retained/disabled state, transitions, dependency chains, startup
 ordering and failure, rollback, case-sensitive IDs, preservation of unrelated data,
 V3-to-V4 migration and competing enable/disable transactions waiting on real
-database locks. The complete Docker validation is:
+database locks. `ModuleGatingIT` adds a test-only descriptor/module and annotated
+controllers to the real application, uses real HTTP on an ephemeral port and the
+JDBC/PostgreSQL store, and covers dynamic disable/re-enable, both controller routes,
+401 before the gate, exact 503 headers/body, initialization/migration preservation
+and unaffected Health/Actuator/login/auth/users. Negative checks confirm internal
+MVC exceptions and HTTP responses are not converted to `module_disabled`.
+Focused interceptor tests cover one check across async redispatch and zero checks
+for CORE/non-controller handlers.
+The complete Docker validation is:
 
 ```bash
 ERBAS_CONTRACT_DIR=/absolute/path/to/pinned-erbas-contract ./bin/check

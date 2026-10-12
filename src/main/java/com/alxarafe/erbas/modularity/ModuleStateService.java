@@ -31,7 +31,7 @@ public final class ModuleStateService {
     }
 
     public void requireEnabled(String moduleId) {
-        if (!isEnabled(moduleId)) throw new IllegalStateException("Module '" + moduleId + "' is disabled");
+        if (!isEnabled(moduleId)) throw new ModuleDisabledException(moduleId);
     }
 
     public void enable(String moduleId) {
