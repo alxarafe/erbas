@@ -3,6 +3,7 @@
 | Document | Purpose |
 | --- | --- |
 | [Usage](usage.md) | Docker build, development, isolated validation and diagnostics |
+| [Modularity](modularity.md) | Module identity, dependency ordering, sequential initialization and Spring startup boundaries |
 | [Integration ADR](decisions/0001-java-health-conformance.md) | Approved boundaries and choices |
 | [CONTRACT-001B verification](verification/contract-001b.md) | Actual results, isolation and cleanup evidence |
 | [AUTH-003 closure](verification/auth-003.md) | Complete persistence, login/security and operational conformance evidence |
