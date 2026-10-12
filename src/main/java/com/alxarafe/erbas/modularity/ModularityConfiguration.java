@@ -3,6 +3,7 @@ package com.alxarafe.erbas.modularity;
 import java.util.List;
 
 import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -24,7 +25,11 @@ public class ModularityConfiguration {
     }
 
     @Bean
-    public SmartInitializingSingleton moduleInitialization(ModuleRuntime runtime) {
-        return runtime::initialize;
+    public SmartInitializingSingleton moduleInitialization(ModuleRuntime runtime,
+            ObjectProvider<ModuleStateService> states) {
+        return () -> {
+            states.ifAvailable(ModuleStateService::synchronize);
+            runtime.initialize();
+        };
     }
 }
