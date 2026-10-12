@@ -16,14 +16,14 @@ public final class ModuleGraph {
     public static List<ErbasModule> order(Collection<? extends ErbasModule> modules) {
         Map<String, ErbasModule> byId = new TreeMap<>();
         for (ErbasModule module : modules) {
-            if (byId.putIfAbsent(module.id(), module) != null) {
-                throw new IllegalArgumentException("Duplicate module id '" + module.id() + "'");
+            if (byId.putIfAbsent(module.descriptor().id(), module) != null) {
+                throw new IllegalArgumentException("Duplicate module id '" + module.descriptor().id() + "'");
             }
         }
         for (ErbasModule module : byId.values()) {
-            for (String dependency : module.dependencies()) {
+            for (String dependency : module.descriptor().dependencies()) {
                 if (!byId.containsKey(dependency)) {
-                    throw new IllegalArgumentException("Module '" + module.id()
+                    throw new IllegalArgumentException("Module '" + module.descriptor().id()
                             + "' depends on missing module '" + dependency + "'");
                 }
             }
@@ -45,7 +45,7 @@ public final class ModuleGraph {
         if (!visiting.add(id)) {
             throw new IllegalArgumentException("Module dependency cycle detected at '" + id + "'");
         }
-        for (String dependency : modules.get(id).dependencies().stream().sorted().toList()) {
+        for (String dependency : modules.get(id).descriptor().dependencies().stream().sorted().toList()) {
             visit(dependency, modules, visiting, visited, ordered);
         }
         visiting.remove(id);

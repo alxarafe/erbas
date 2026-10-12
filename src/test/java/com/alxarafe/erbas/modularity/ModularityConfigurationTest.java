@@ -27,6 +27,22 @@ class ModularityConfigurationTest {
     }
 
     @Test
+    void additionalSourceParticipatesWithoutRegisteringItsModulesAsBeans() {
+        try (var context = new AnnotationConfigApplicationContext()) {
+            context.register(ModularityConfiguration.class);
+            context.registerBean(InitializationLog.class);
+            context.registerBean(FoundationModule.class);
+            context.registerBean(ModuleSource.class, () -> () ->
+                    List.of(new ConsumerModule(context.getBean(InitializationLog.class))));
+            context.refresh();
+            assertThat(context.getBeansOfType(ErbasModule.class)).hasSize(1);
+            assertThat(context.getBean(ModuleRegistry.class).modules()).hasSize(2);
+            assertThat(context.getBean(InitializationLog.class).calls)
+                    .containsExactly(FoundationModule.ID, ConsumerModule.ID);
+        }
+    }
+
+    @Test
     void springCreatesEmptyRuntimeWithoutModuleBeans() {
         try (var context = new AnnotationConfigApplicationContext(ModularityConfiguration.class)) {
             assertThat(context.getBean(ModuleRuntime.class).modules()).isEmpty();
@@ -40,13 +56,8 @@ class ModularityConfigurationTest {
             context.register(ModularityConfiguration.class);
             context.registerBean(ErbasModule.class, () -> new ErbasModule() {
                 @Override
-                public String id() {
-                    return "failing";
-                }
-
-                @Override
-                public List<String> dependencies() {
-                    return List.of();
+                public ModuleDescriptor descriptor() {
+                    return new ModuleDescriptor("failing", ModuleApi.CURRENT_VERSION, List.of());
                 }
 
                 @Override
@@ -72,13 +83,8 @@ class ModularityConfigurationTest {
         }
 
         @Override
-        public String id() {
-            return ID;
-        }
-
-        @Override
-        public List<String> dependencies() {
-            return List.of();
+        public ModuleDescriptor descriptor() {
+            return new ModuleDescriptor(ID, ModuleApi.CURRENT_VERSION, List.of());
         }
 
         @Override
@@ -96,13 +102,8 @@ class ModularityConfigurationTest {
         }
 
         @Override
-        public String id() {
-            return ID;
-        }
-
-        @Override
-        public List<String> dependencies() {
-            return List.of(FoundationModule.ID);
+        public ModuleDescriptor descriptor() {
+            return new ModuleDescriptor(ID, ModuleApi.CURRENT_VERSION, List.of(FoundationModule.ID));
         }
 
         @Override
