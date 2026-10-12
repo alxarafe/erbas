@@ -31,19 +31,19 @@ class ModuleGraphTest {
     @Test
     void ordersDependencyChainBeforeConsumers() {
         var a = new FakeModule("a", List.of());
-        var b = new FakeModule("b", List.of(a.id()));
-        var c = new FakeModule("c", List.of(b.id()));
+        var b = new FakeModule("b", List.of(a.descriptor().id()));
+        var c = new FakeModule("c", List.of(b.descriptor().id()));
         assertThat(ModuleGraph.order(List.of(c, b, a))).containsExactly(a, b, c);
     }
 
     @Test
     void ordersMultipleDependenciesNaturallyAndVisitsSharedDependencyOnce() {
         var root = new FakeModule("root", List.of());
-        var b = new FakeModule("b", List.of(root.id()));
-        var c = new FakeModule("c", List.of(root.id()));
-        var a = new FakeModule("a", List.of(c.id(), b.id()));
+        var b = new FakeModule("b", List.of(root.descriptor().id()));
+        var c = new FakeModule("c", List.of(root.descriptor().id()));
+        var a = new FakeModule("a", List.of(c.descriptor().id(), b.descriptor().id()));
         assertThat(ModuleGraph.order(List.of(a, c, root, b))).containsExactly(root, b, c, a);
-        var reversed = new FakeModule(a.id(), List.of(b.id(), c.id()));
+        var reversed = new FakeModule(a.descriptor().id(), List.of(b.descriptor().id(), c.descriptor().id()));
         assertThat(ModuleGraph.order(List.of(b, root, c, reversed)))
                 .containsExactly(root, b, c, reversed);
     }
@@ -52,16 +52,16 @@ class ModuleGraphTest {
     void rejectsMissingDependencyWithBothIds() {
         var module = new FakeModule("consumer", List.of("missing"));
         assertThatThrownBy(() -> ModuleGraph.order(List.of(module)))
-                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining(module.id())
-                .hasMessageContaining(module.dependencies().getFirst());
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining(module.descriptor().id())
+                .hasMessageContaining(module.descriptor().dependencies().getFirst());
     }
 
     @Test
     void rejectsDuplicateId() {
         var first = new FakeModule("duplicate", List.of());
-        var second = new FakeModule(first.id(), List.of());
+        var second = new FakeModule(first.descriptor().id(), List.of());
         assertThatThrownBy(() -> ModuleGraph.order(List.of(first, second)))
-                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining(first.id());
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining(first.descriptor().id());
     }
 
     @Test
@@ -69,17 +69,17 @@ class ModuleGraphTest {
         var module = new FakeModule("self", List.of("self"));
         assertThatThrownBy(() -> ModuleGraph.order(List.of(module)))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("cycle")
-                .hasMessageContaining(module.id());
+                .hasMessageContaining(module.descriptor().id());
     }
 
     @Test
     void rejectsIndirectCycle() {
         var a = new FakeModule("a", List.of("b"));
         var b = new FakeModule("b", List.of("c"));
-        var c = new FakeModule("c", List.of(a.id()));
+        var c = new FakeModule("c", List.of(a.descriptor().id()));
         assertThatThrownBy(() -> ModuleGraph.order(List.of(c, b, a)))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("cycle")
-                .hasMessageContaining(a.id());
+                .hasMessageContaining(a.descriptor().id());
     }
 
     @Test
@@ -89,7 +89,11 @@ class ModuleGraphTest {
         assertThatThrownBy(() -> result.add(module)).isInstanceOf(UnsupportedOperationException.class);
     }
 
-    private record FakeModule(String id, List<String> dependencies) implements ErbasModule {
+    private record FakeModule(ModuleDescriptor descriptor) implements ErbasModule {
+        FakeModule(String id, List<String> dependencies) {
+            this(new ModuleDescriptor(id, ModuleApi.CURRENT_VERSION, dependencies));
+        }
+
         @Override
         public void initialize() {
         }

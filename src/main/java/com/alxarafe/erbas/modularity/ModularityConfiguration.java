@@ -9,8 +9,18 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 public class ModularityConfiguration {
     @Bean
-    public ModuleRuntime moduleRuntime(List<ErbasModule> modules) {
-        return new ModuleRuntime(ModuleGraph.order(modules));
+    public SpringModuleSource springModuleSource(List<ErbasModule> modules) {
+        return new SpringModuleSource(modules);
+    }
+
+    @Bean
+    public ModuleRegistry moduleRegistry(List<ModuleSource> sources) {
+        return new ModuleRegistry(sources);
+    }
+
+    @Bean
+    public ModuleRuntime moduleRuntime(ModuleRegistry registry) {
+        return new ModuleRuntime(ModuleGraph.order(registry.modules()));
     }
 
     @Bean

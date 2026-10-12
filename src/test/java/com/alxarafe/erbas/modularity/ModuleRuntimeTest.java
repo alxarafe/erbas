@@ -13,15 +13,15 @@ class ModuleRuntimeTest {
     void initializesExactlyOnceInResolvedOrder() {
         List<String> calls = new ArrayList<>();
         var a = new FakeModule("a", List.of(), () -> calls.add("a"));
-        var b = new FakeModule("b", List.of(a.id()), () -> calls.add("b"));
-        var c = new FakeModule("c", List.of(b.id()), () -> calls.add("c"));
+        var b = new FakeModule("b", List.of(a.descriptor().id()), () -> calls.add("b"));
+        var c = new FakeModule("c", List.of(b.descriptor().id()), () -> calls.add("c"));
         var ordered = ModuleGraph.order(List.of(c, a, b));
         var runtime = new ModuleRuntime(ordered);
         assertThat(runtime.modules()).containsExactlyElementsOf(ordered);
         runtime.initialize();
-        assertThat(calls).containsExactly(a.id(), b.id(), c.id());
+        assertThat(calls).containsExactly(a.descriptor().id(), b.descriptor().id(), c.descriptor().id());
         assertThatThrownBy(runtime::initialize).isInstanceOf(IllegalStateException.class);
-        assertThat(calls).containsExactly(a.id(), b.id(), c.id());
+        assertThat(calls).containsExactly(a.descriptor().id(), b.descriptor().id(), c.descriptor().id());
     }
 
     @Test
@@ -29,16 +29,16 @@ class ModuleRuntimeTest {
         List<String> calls = new ArrayList<>();
         var failure = new IllegalStateException("fixture failure");
         var a = new FakeModule("a", List.of(), () -> calls.add("a"));
-        var b = new FakeModule("b", List.of(a.id()), () -> {
+        var b = new FakeModule("b", List.of(a.descriptor().id()), () -> {
             calls.add("b");
             throw failure;
         });
-        var c = new FakeModule("c", List.of(b.id()), () -> calls.add("c"));
+        var c = new FakeModule("c", List.of(b.descriptor().id()), () -> calls.add("c"));
         var runtime = new ModuleRuntime(ModuleGraph.order(List.of(c, b, a)));
         assertThatThrownBy(runtime::initialize).isSameAs(failure);
-        assertThat(calls).containsExactly(a.id(), b.id());
+        assertThat(calls).containsExactly(a.descriptor().id(), b.descriptor().id());
         assertThatThrownBy(runtime::initialize).isInstanceOf(IllegalStateException.class);
-        assertThat(calls).containsExactly(a.id(), b.id());
+        assertThat(calls).containsExactly(a.descriptor().id(), b.descriptor().id());
     }
 
     @Test
@@ -58,7 +58,11 @@ class ModuleRuntimeTest {
         assertThat(runtime.modules()).isEmpty();
     }
 
-    private record FakeModule(String id, List<String> dependencies, Runnable action) implements ErbasModule {
+    private record FakeModule(ModuleDescriptor descriptor, Runnable action) implements ErbasModule {
+        FakeModule(String id, List<String> dependencies, Runnable action) {
+            this(new ModuleDescriptor(id, ModuleApi.CURRENT_VERSION, dependencies), action);
+        }
+
         @Override
         public void initialize() {
             action.run();
