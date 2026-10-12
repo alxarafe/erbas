@@ -16,7 +16,7 @@ Java and .NET converge on a neutral contract so consumers can use either stack.
 | [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and the sole Bruno collection |
 | [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot backend implementing Health, AUTH-001, USERS-001 and COLLECTIONS-001 with PostgreSQL and Flyway |
 | [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | .NET backend implementing Health, AUTH-001, USERS-001 and COLLECTIONS-001 plus platform modules; CI requires shared Bruno against v0.4.0 |
-| [erbas-client](https://github.com/alxarafe/erbas-client) | Angular 22 client consuming Health, AUTH-001 and the USERS-001 profile/list/detail/create slice with COLLECTIONS-001 pagination from either backend; WEB-003C completed and merged |
+| [erbas-client](https://github.com/alxarafe/erbas-client) | Angular 22 client consuming Health, AUTH-001, USERS-001 basic user administration and COLLECTIONS-001 pagination from either backend |
 
 The scope includes JDBC authentication persistence, minimal login and opaque
 bearer authentication through Spring Security. `GET /health` returns
@@ -33,14 +33,11 @@ permissions, email changes and password management are outside this scope.
 See [USERS-001 verification](docs/verification/users-001.md) and
 [COLLECTIONS-001 verification](docs/verification/collections-001.md).
 
-The client consumes `GET /api/auth/me`, paged administrator `GET /api/users`,
-`GET /api/users/{id}` detail and administrator `POST /api/users` creation. Login
-loads the current profile; a loaded `admin=true` profile offers administrator
-controls, while backend authorization remains authoritative. The bearer remains
-backend-bound and memory-only. `PATCH /api/users/{id}` and update UI remain pending;
-this is not full USERS-001 frontend support. See its
-[WEB-003C guide](https://github.com/alxarafe/erbas-client/blob/main/docs/full-stack-development.md#administrator-user-creation-web-003c)
-for creation, password handling, errors and verification scope.
+The same client provides authenticated profiles and basic administrator user
+management with pagination against either backend. Backend authorization remains
+authoritative; the opaque bearer stays backend-bound and memory-only. See the
+[client development guide](https://github.com/alxarafe/erbas-client/blob/main/docs/full-stack-development.md)
+for behavior, error handling and verification scope.
 
 ## Get started
 
@@ -79,7 +76,7 @@ verification evidence against earlier revisions.
 
 The .NET badge reports the .NET workflow, including its shared Bruno checks;
 it does not establish Java conformance. Angular client CI verifies its own
-tests, build, runtime and isolated Health/login/profile/list/detail/create proxies.
+tests, build, runtime and isolated shared API proxies.
 The client's [real dual-backend demo evidence](https://github.com/alxarafe/erbas-client/blob/main/docs/full-stack-development.md#web-002-integration-verification-2026-10-09)
 records WEB-002 integration separately from those CI results. Client CI does
 not perform backend shared-conformance validation.
