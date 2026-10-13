@@ -55,7 +55,7 @@ public final class ModuleStateService {
 
     private void requireAvailable(String moduleId) {
         if (!available.containsKey(moduleId)) {
-            throw new IllegalArgumentException("Module '" + moduleId + "' is not AVAILABLE");
+            throw new ModuleUnavailableException(moduleId);
         }
     }
 
@@ -65,9 +65,12 @@ public final class ModuleStateService {
             if (enabled == null) throw new IllegalStateException("Module state is missing for '" + module.id() + "'");
             if (!enabled) continue;
             for (String dependency : module.dependencies()) {
-                if (!Boolean.TRUE.equals(states.get(dependency))) {
-                    throw new IllegalStateException("Enabled module '" + module.id()
-                            + "' requires enabled dependency '" + dependency + "'");
+                var dependencyEnabled = states.get(dependency);
+                if (dependencyEnabled == null) {
+                    throw new IllegalStateException("Module state is missing for '" + dependency + "'");
+                }
+                if (!dependencyEnabled) {
+                    throw new ModuleDependencyConflictException(module.id(), dependency);
                 }
             }
         }

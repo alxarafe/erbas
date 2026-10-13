@@ -6,6 +6,7 @@ import java.util.Map;
 
 import com.alxarafe.erbas.auth.application.LoginUseCase;
 import com.alxarafe.erbas.auth.application.UserAdministration;
+import com.alxarafe.erbas.modularity.http.ModuleController;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -88,6 +89,9 @@ public class AuthenticationConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(publicEndpoints).permitAll()
                         .requestMatchers(paths.matcher("/api/users"), paths.matcher("/api/users/**"))
+                            .hasAuthority(BearerAuthenticationProvider.ADMIN_AUTHORITY)
+                        .requestMatchers(paths.matcher(ModuleController.MODULES_PATH),
+                                paths.matcher(ModuleController.MODULES_PATH + "/**"))
                             .hasAuthority(BearerAuthenticationProvider.ADMIN_AUTHORITY)
                         .anyRequest().authenticated())
                 .exceptionHandling(errors -> errors.authenticationEntryPoint((request, response, failure) -> {

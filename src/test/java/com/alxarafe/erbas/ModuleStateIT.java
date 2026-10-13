@@ -104,6 +104,20 @@ class ModuleStateIT {
     }
 
     @Test
+    void missingDependencyStateIsAnInternalFailureRatherThanAnAdministrativeConflict() {
+        // The dependent sorts first, so validation encounters the missing
+        // dependency while inspecting an otherwise present enabled module.
+        var states = service(List.of(new FakeModule(A, List.of(B), new ArrayList<>()),
+                new FakeModule(B, List.of(), new ArrayList<>())));
+        states.synchronize();
+        jdbc.update("DELETE FROM " + JdbcModuleStateStore.TABLE + " WHERE " + JdbcModuleStateStore.MODULE_ID + " = ?", B);
+        assertThatThrownBy(() -> states.disable(A)).isExactlyInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> states.enable(A)).isExactlyInstanceOf(IllegalStateException.class);
+        assertThat(store().find(A)).contains(true);
+        assertThat(store().find(B)).isEmpty();
+    }
+
+    @Test
     void disabledModulesStillInitializeAndInvalidStatePreventsStartup() {
         store().update(states -> {
             states.put(A, false);
