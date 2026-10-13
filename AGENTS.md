@@ -339,6 +339,16 @@ logs. Test negotiation, fallback, parameter interpolation and stable technical
 fields through HTTP. Test-only controllers and resources must stay in `src/test`
 and must never enter production artifacts.
 
+## Functional module boundaries
+
+Core must not absorb business domain logic. Future functional modules own their
+domain, use cases, ports, persistence/migrations, HTTP endpoints, permissions,
+resources and tests. No functional module may depend on removed examples.
+`erbas.dev.math` and `erbas.dev.statistics` are exclusively conformance/testing
+descriptors, registered only by explicit validation composition. They are never
+business capabilities or functional dependencies. Normal composition can contain
+zero modules. WMS and AI require their own separately approved designs.
+
 ## Engineering simplicity
 
 Prefer simple, explicit and maintainable solutions.
