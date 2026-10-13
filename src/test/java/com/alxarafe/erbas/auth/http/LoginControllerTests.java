@@ -14,6 +14,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.MockMvcPrint;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.servlet.MockMvc;
@@ -63,6 +64,16 @@ class LoginControllerTests {
                 .andExpect(header().doesNotExist("Set-Cookie"))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(content().json("{\"accessToken\":\"synthetic-token\"}", JsonCompareMode.STRICT));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"en", "es"})
+    void languageNeverAddsHumanFieldsToPublishedClosedErrors(String language) throws Exception {
+        mvc.perform(post("/api/auth/login").header(HttpHeaders.ACCEPT_LANGUAGE, language)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(content().json("{\"code\":\"invalid_request\"}", JsonCompareMode.STRICT));
     }
 
     @Test

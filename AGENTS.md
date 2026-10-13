@@ -310,6 +310,35 @@ before the final local commit, then obtain approval before starting the next tas
 Independent authorization for push, PR creation, merge, tag, release, publication
 and deployment remains required.
 
+## API internationalization
+
+Route every user-facing runtime literal through native i18n. Initial languages
+are `en` and `es`; English is the base and deterministic fallback. Select the
+locale per request through standard `Accept-Language` negotiation only, including
+regional variants. Never introduce a language query parameter, custom header,
+mutable global locale or persistent user preference for this purpose.
+
+Use Spring `MessageSource` and Jakarta Validation, including Spring's native
+integration and recursive `MessageSourceResolvable` resolution. Domain and
+Application must not depend on localization, HTTP or request locale. Translate
+structured errors at their HTTP boundary with native `ProblemDetail` where that
+representation is applicable. Existing closed shared-contract errors remain
+unchanged; adding human fields requires a separately approved contract revision.
+
+Resources belong to the module/feature owning the message and ship in its JAR.
+Core contains only transversal HTTP/validation text. Use distinct explicit
+basenames such as `i18n/core/messages` and `i18n/contact/messages`; the unsuffixed
+bundle is English and `_es` is Spanish. Composition registers known basenames;
+do not build dynamic discovery or a translation framework. Use complete phrases
+with native parameters, never concatenated translated fragments.
+
+Do not translate routes, JSON properties, canonical field names/paths, error
+codes, IDs, permissions/policies, claims, events, module names, configuration or
+other technical keys, database identifiers, or internal operational/development
+logs. Test negotiation, fallback, parameter interpolation and stable technical
+fields through HTTP. Test-only controllers and resources must stay in `src/test`
+and must never enter production artifacts.
+
 ## Engineering simplicity
 
 Prefer simple, explicit and maintainable solutions.
