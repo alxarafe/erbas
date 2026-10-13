@@ -16,6 +16,7 @@ import com.alxarafe.erbas.modularity.ModuleDescriptor;
 import com.alxarafe.erbas.modularity.ModuleDisabledException;
 import com.alxarafe.erbas.modularity.ModuleStateService;
 import com.alxarafe.erbas.modularity.http.ModuleEndpoint;
+import com.alxarafe.erbas.modularity.http.ModuleController;
 import com.alxarafe.erbas.modularity.http.ModuleEndpointInterceptor;
 import com.alxarafe.erbas.modularity.persistence.JdbcModuleStateStore;
 import org.junit.jupiter.api.AfterAll;
@@ -107,6 +108,7 @@ class ModuleGatingIT {
             assertThat(get("/actuator/health", null).statusCode()).isEqualTo(HttpStatus.OK.value());
             assertThat(get("/api/auth/me", token).statusCode()).isEqualTo(HttpStatus.OK.value());
             assertThat(get("/api/users", token).statusCode()).isEqualTo(HttpStatus.OK.value());
+            assertThat(get(ModuleController.MODULES_PATH, token).statusCode()).isEqualTo(HttpStatus.OK.value());
             assertThat(login()).isNotBlank();
         } finally {
             states.enable(TestModule.ID);
