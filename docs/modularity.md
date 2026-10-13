@@ -104,8 +104,63 @@ instances. Ordinary checks continue to read committed database state.
 Disabling never deletes module data, tables or configuration, reverts migrations,
 unloads code, or changes technical initialization. All available modules still
 initialize, including disabled ones. `requireEnabled` provides the shared internal
-guard now used by the platform HTTP gate. Module administration HTTP remains out of
-scope; INITIALIZED never substitutes for permission to execute functional work.
+guard used by the platform HTTP gate. The CORE administration API below is outside
+that gate; INITIALIZED never substitutes for permission to execute functional work.
+
+## CORE module administration
+
+Java adopts published ERBAS Contract `v0.5.0` through administrator-only
+`GET /api/modules` and `PATCH /api/modules/{id}`. Spring Security applies existing
+bearer authentication and the central `ADMIN` authority before MVC body/query
+validation, descriptor lookup or state changes. Missing/invalid authentication
+returns the existing closed 401 response with a Bearer challenge; non-admin users
+receive the existing closed 403 without that header. No new RBAC is introduced.
+These CORE endpoints never use `@ModuleEndpoint` and remain usable when all
+functional modules are disabled.
+
+The closed Module contains only `id`, `moduleApiVersion`, `dependencies` and
+`enabled`. Descriptor metadata comes exclusively from the current registry,
+dependencies are sorted by natural case-sensitive ID order, and enabled state is
+read from persistence for each response. Historical rows do not make an absent
+module available. The list uses registry ID ordering before pagination and the
+same `PagedCollection` envelope, defaults, bounds and parser as Users, preserving
+COLLECTIONS-001 and existing user behavior. Empty and beyond-total windows return
+200 with complete metadata. Pagination and wire schemas are specified by the
+[published OpenAPI](https://github.com/alxarafe/erbas-contract/blob/v0.5.0/openapi/erbas.yaml).
+
+PATCH accepts exactly one required boolean `enabled`. Malformed JSON, arrays,
+scalars, missing/nonboolean values and extra fields return 400 `invalid_request`.
+Successful transitions, including idempotent ones, return 200 with the complete
+current Module. Case-sensitive unavailable IDs return 404 `module_not_found`.
+`ModuleStateService` remains the sole state authority: its existing transaction,
+snapshot validation and store lock provide atomic dependency-safe changes without
+cascades. A dependency violation returns 409 `module_dependency_conflict`.
+Narrow `ModuleUnavailableException` and `ModuleDependencyConflictException`
+identify those cases without parsing messages. Missing state and unexpected
+failures retain internal errors rather than becoming false 404/409 responses.
+All specified responses are JSON with `Cache-Control: no-store`; only 401 carries
+`WWW-Authenticate`. Closed error bodies expose no internal IDs or details.
+
+### Explicit canonical conformance composition
+
+`ConformanceModulesConfiguration` contributes one `ModuleSource` only when the
+`validation` profile and `erbas.modules.conformance.enabled=true` are both set.
+The environment binding is `ERBAS_MODULES_CONFORMANCE_ENABLED`, default false.
+`docker/compose.validation.yaml` enables it explicitly; development/production
+composition does not register it. Normal startup remains valid with zero modules.
+
+The source contributes exactly `erbas.dev.math` (no dependencies) and
+`erbas.dev.statistics` (depends on Math), using `ModuleApi.CURRENT_VERSION`.
+Their IDs are centralized in that configuration. They are reserved development
+descriptors with no business behavior, mathematical functions or functional HTTP
+endpoints. No extra descriptor fields distinguish them.
+
+The source enters the ordinary registry/graph/runtime pipeline. Startup uses
+normal state synchronization to insert initially enabled rows; no special DB seed
+or reset endpoint exists. Existing persisted choices are preserved. Shared
+conformance mutates both flags in an isolated disposable database and leaves both
+enabled on success. This composition adds no external loader, bus or capability
+registry.
 
 ## Functional HTTP gating
 
@@ -153,7 +208,7 @@ not UNINSTALL, and UNINSTALL does not imply deleting data. PURGE, if ever provid
 will be explicit and independent. None of these operations is implemented.
 
 External directory discovery, JAR/DLL loading, hot loading/unloading, installers,
-module management endpoints and frontend remain out of scope. No start/stop,
+installation/uninstallation endpoints and frontend remain out of scope. No start/stop,
 activation hooks, event bus or cache invalidation infrastructure is introduced.
 The future package source will enter the existing registry/graph/runtime pipeline;
 state remains keyed by descriptor ID independently of its source.
@@ -231,3 +286,13 @@ The complete Docker validation is:
 ```bash
 ERBAS_CONTRACT_DIR=/absolute/path/to/pinned-erbas-contract ./bin/check
 ```
+
+`ModuleControllerTests` covers the closed HTTP boundary, case-sensitive ordering
+before pagination, fresh enabled reads, 401/403 precedence, exact errors and
+unexpected failures. Composition tests cover disabled/default/production contexts
+and explicit canonical registration. PostgreSQL-backed `ModuleAdministrationIT`
+verifies real HTTP security, defaults, historical-row exclusion, idempotence,
+both dependency conflicts without partial persisted changes, normal synchronization
+and CORE recovery when all modules are disabled. `ModuleStateIT` also proves that
+missing dependency state remains an internal failure. See
+[MODULES-001E-JAVA evidence](verification/modules-001e-java.md).
