@@ -63,7 +63,7 @@ introduced without a real consumer.
 
 **ENABLED** is administrative state stored in PostgreSQL, independently of
 AVAILABLE and INITIALIZED. **OPERATIONAL** is not modeled. State belongs to the
-platform/CORE, never to Catalog, Security or another business module.
+platform/CORE, never to Security or a business module.
 
 The platform table `module_states` has exactly two columns: `module_id TEXT
 COLLATE "C" PRIMARY KEY` and `enabled BOOLEAN NOT NULL`. IDs retain the descriptor's

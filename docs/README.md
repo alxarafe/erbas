@@ -2,6 +2,7 @@
 
 | Document | Purpose |
 | --- | --- |
+| [CLEANUP-001 verification](verification/cleanup-001.md) | Empty normal composition, canonical validation modules and regression evidence |
 | [Usage](usage.md) | Docker build, development, isolated validation and diagnostics |
 | [Modularity](modularity.md) | Module identity, dependency ordering, sequential initialization and Spring startup boundaries |
 | [API internationalization](i18n.md) | Native locale negotiation, module-owned bundles and Jakarta Validation without changing v0.5.0 errors |
