@@ -14,7 +14,7 @@ Java and .NET converge on a neutral contract so consumers can use either stack.
 | Repository | Responsibility |
 | --- | --- |
 | [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and the sole Bruno collection |
-| [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot backend implementing Health, AUTH-001, USERS-001, COLLECTIONS-001 and CORE module administration with PostgreSQL and Flyway |
+| [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot backend implementing Health, AUTH-001, USERS-001, COLLECTIONS-001, CORE module administration and WMS UoM with PostgreSQL and Flyway |
 | [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | .NET backend implementing Health, AUTH-001, USERS-001, COLLECTIONS-001 and CORE module administration; CI requires shared Bruno against v0.5.0 |
 | [erbas-client](https://github.com/alxarafe/erbas-client) | Angular 22 client consuming Health, AUTH-001, USERS-001 basic user administration and COLLECTIONS-001 pagination from either backend |
 
@@ -34,8 +34,9 @@ See [USERS-001 verification](docs/verification/users-001.md) and
 [COLLECTIONS-001 verification](docs/verification/collections-001.md).
 
 CORE module administration lists available descriptors and changes persistent
-enabled state atomically, respecting dependencies. Normal startup has zero Java
-modules; canonical development modules are explicitly enabled only in disposable
+enabled state atomically, respecting dependencies. Normal startup includes the
+production WMS module and its UoM catalogue;
+canonical development modules are explicitly enabled only in disposable
 conformance composition. See [modularity](docs/modularity.md#core-module-administration).
 
 The same client provides authenticated profiles and basic administrator user
@@ -70,7 +71,7 @@ No host Java, Maven or Bruno is needed. See [usage](docs/usage.md).
 
 ## Status and documentation
 
-Java implements the published ERBAS Contract `v0.5.0`, recorded in
+Java implements the published ERBAS Contract `v0.6.0`, recorded in
 [contract.revision](contract.revision). The supplied checkout must be clean and
 its release tag and HEAD must resolve to the expected immutable commit.
 `./bin/check` is authoritative locally and in GitHub Actions, where shared Bruno
@@ -78,7 +79,7 @@ conformance against the same published release is mandatory. The CI badge
 reports workflow results; [AUTH-003](docs/verification/auth-003.md) and
 [COLLECTIONS-001](docs/verification/collections-001.md) retain historical local
 verification evidence against earlier revisions.
-Current local adoption evidence is in [MODULES-001E-JAVA](docs/verification/modules-001e-java.md).
+Current local adoption evidence is in [WMS-001J](docs/verification/wms-001-java.md).
 
 The .NET badge reports the .NET workflow, including its shared Bruno checks;
 it does not establish Java conformance. Angular client CI verifies its own

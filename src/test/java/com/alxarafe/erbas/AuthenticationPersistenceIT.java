@@ -34,7 +34,7 @@ class AuthenticationPersistenceIT {
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         assertThat(jdbc.queryForList("""
                 SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank
-                """, String.class)).containsExactly("1", "2", "3", "4");
+                """, String.class)).containsExactly("1", "2", "3", "4", "5");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE NOT success",
                 Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM erbas_persistence_marker WHERE marker_id = 1",

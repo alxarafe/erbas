@@ -14,6 +14,7 @@ import com.alxarafe.erbas.auth.infrastructure.JdbcAuthenticationStore;
 import com.alxarafe.erbas.modularity.*;
 import com.alxarafe.erbas.modularity.http.ModuleController;
 import com.alxarafe.erbas.modularity.persistence.JdbcModuleStateStore;
+import com.alxarafe.erbas.wms.WmsModule;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,7 +69,8 @@ class ModuleAdministrationIT {
     void startupUsesNormalSynchronizationBeforeAnyHttpMutation() throws Exception {
         assertThat(registry.modules().stream().map(ErbasModule::descriptor)).containsExactly(
                 new ModuleDescriptor(MATH_ID, ModuleApi.CURRENT_VERSION, List.of()),
-                new ModuleDescriptor(STATISTICS_ID, ModuleApi.CURRENT_VERSION, List.of(MATH_ID)));
+                new ModuleDescriptor(STATISTICS_ID, ModuleApi.CURRENT_VERSION, List.of(MATH_ID)),
+                new ModuleDescriptor(WmsModule.ID, ModuleApi.CURRENT_VERSION, List.of()));
         assertThat(runtime.modules()).containsExactlyElementsOf(registry.modules());
         assertThat(store.find(MATH_ID)).contains(ModuleStateService.INITIAL_ENABLED);
         assertThat(store.find(STATISTICS_ID)).contains(ModuleStateService.INITIAL_ENABLED);
@@ -83,6 +85,7 @@ class ModuleAdministrationIT {
     void restoreThroughTheNormalAuthority() {
         states.enable(MATH_ID);
         states.enable(STATISTICS_ID);
+        states.enable(WmsModule.ID);
     }
 
     @AfterAll
@@ -102,8 +105,8 @@ class ModuleAdministrationIT {
         var response = get(ModuleController.MODULES_PATH, adminToken);
         assertJson(response, HttpStatus.OK);
         assertThat(json.readTree(response.body())).isEqualTo(json.valueToTree(Map.of(
-                "items", List.of(module(MATH_ID, true), module(STATISTICS_ID, true)),
-                "offset", 0, "limit", PagedCollection.DEFAULT_LIMIT, "total", 2,
+                "items", List.of(module(MATH_ID, true), module(STATISTICS_ID, true), module(WmsModule.ID, true)),
+                "offset", 0, "limit", PagedCollection.DEFAULT_LIMIT, "total", 3,
                 "order", List.of(Map.of("field", "id", "direction", "asc")))));
         assertThat(store.find(RETIRED)).contains(false);
     }
@@ -113,12 +116,12 @@ class ModuleAdministrationIT {
         var response = get(ModuleController.MODULES_PATH + "?offset=1&limit=1", adminToken);
         assertJson(response, HttpStatus.OK);
         assertThat(json.readTree(response.body())).isEqualTo(json.valueToTree(Map.of(
-                "items", List.of(module(STATISTICS_ID, true)), "offset", 1, "limit", 1, "total", 2,
+                "items", List.of(module(STATISTICS_ID, true)), "offset", 1, "limit", 1, "total", 3,
                 "order", List.of(Map.of("field", "id", "direction", "asc")))));
         var maximum = get(ModuleController.MODULES_PATH + "?limit=" + PagedCollection.MAXIMUM_LIMIT, adminToken);
         assertJson(maximum, HttpStatus.OK);
         assertThat(json.readTree(maximum.body()).get("limit").asInt()).isEqualTo(PagedCollection.MAXIMUM_LIMIT);
-        for (String offset : List.of("2", "100", "9223372036854775808")) {
+        for (String offset : List.of("3", "100", "9223372036854775808")) {
             var beyond = get(ModuleController.MODULES_PATH + "?offset=" + offset, adminToken);
             assertJson(beyond, HttpStatus.OK);
             assertThat(json.readTree(beyond.body()).get("items").isEmpty()).isTrue();
@@ -148,12 +151,14 @@ class ModuleAdministrationIT {
     void coreAdministrationRemainsAccessibleWithEveryModuleDisabledAndReadsCurrentCommittedState() throws Exception {
         states.disable(STATISTICS_ID);
         states.disable(MATH_ID);
+        states.disable(WmsModule.ID);
         var response = get(ModuleController.MODULES_PATH, adminToken);
         assertJson(response, HttpStatus.OK);
         assertThat(json.readTree(response.body()).get("items")).isEqualTo(
-                json.valueToTree(List.of(module(MATH_ID, false), module(STATISTICS_ID, false))));
+                json.valueToTree(List.of(module(MATH_ID, false), module(STATISTICS_ID, false), module(WmsModule.ID, false))));
         assertModule(patch(MATH_ID, true, adminToken), MATH_ID, true);
         assertModule(patch(STATISTICS_ID, true, adminToken), STATISTICS_ID, true);
+        assertModule(patch(WmsModule.ID, true, adminToken), WmsModule.ID, true);
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.alxarafe.erbas.auth.infrastructure;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Map;
+import java.util.List;
 
 import com.alxarafe.erbas.auth.application.LoginUseCase;
 import com.alxarafe.erbas.auth.application.UserAdministration;
@@ -16,6 +17,8 @@ import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -70,7 +73,8 @@ public class AuthenticationConfiguration {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationManager bearerAuthenticationManager)
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationManager bearerAuthenticationManager,
+            List<Customizer<AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry>> endpointAuthorizations)
             throws Exception {
         var paths = PathPatternRequestMatcher.withDefaults();
         var publicEndpoints = new OrRequestMatcher(
@@ -86,14 +90,16 @@ public class AuthenticationConfiguration {
                 .logout(AbstractHttpConfigurer::disable)
                 .requestCache(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(publicEndpoints).permitAll()
+                .authorizeHttpRequests(authorize -> {
+                    authorize.requestMatchers(publicEndpoints).permitAll()
                         .requestMatchers(paths.matcher("/api/users"), paths.matcher("/api/users/**"))
                             .hasAuthority(BearerAuthenticationProvider.ADMIN_AUTHORITY)
                         .requestMatchers(paths.matcher(ModuleController.MODULES_PATH),
                                 paths.matcher(ModuleController.MODULES_PATH + "/**"))
-                            .hasAuthority(BearerAuthenticationProvider.ADMIN_AUTHORITY)
-                        .anyRequest().authenticated())
+                            .hasAuthority(BearerAuthenticationProvider.ADMIN_AUTHORITY);
+                    endpointAuthorizations.forEach(customizer -> customizer.customize(authorize));
+                    authorize.anyRequest().authenticated();
+                })
                 .exceptionHandling(errors -> errors.authenticationEntryPoint((request, response, failure) -> {
                     response.setStatus(401);
                     response.setHeader("WWW-Authenticate", "Bearer");

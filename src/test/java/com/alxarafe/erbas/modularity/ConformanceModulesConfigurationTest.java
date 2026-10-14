@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ConformanceModulesConfigurationTest {
     @Test
-    void normalAndProductionCompositionHaveZeroModulesEvenWithTheOptInProperty() {
+    void conformanceSourceIsAbsentOutsideValidationEvenWithTheOptInProperty() {
         for (String profile : List.of("default", "production")) {
             try (var context = context(profile, true)) {
                 assertThat(context.getBean(ModuleRegistry.class).modules()).isEmpty();
