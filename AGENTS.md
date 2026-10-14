@@ -241,9 +241,9 @@ change it unilaterally or duplicate the collection. Never add implementation
 branches to the shared contract.
 
 Declare the implemented published release in `contract.revision`, currently
-`v0.5.0`. Require an explicit contract directory. Verify repository root, GitHub
+`v0.6.0`. Require an explicit contract directory. Verify repository root, GitHub
 origin, tracked/nonignored cleanliness, the release tag's immutable commit
-(`35be07fe002c364f758ae50419d0ecb86d1f0c43` for `v0.5.0`) and matching HEAD
+(`92d1282154f340aadcfdf93f52a82a1f3472b335` for `v0.6.0`) and matching HEAD
 before provisioning and every shared test call. No unpublished-checkout opt-in
 is required. Allow ignored files and preserve them. Never fetch, pull, checkout
 or modify the supplied contract repository.
@@ -256,7 +256,7 @@ controls belong only to host verification, never production application behavior
 
 Failed conformance must block publication/deployment. GitHub Java CI invokes
 the same `./bin/check` authority with a separate `alxarafe/erbas-contract` checkout
-at the published `v0.5.0` tag. Shared conformance and cleanup are mandatory.
+at the published `v0.6.0` tag. Shared conformance and cleanup are mandatory.
 Task approval authorizes its final local commit under the lifecycle rules above.
 Do not push, create PRs, merge, tag, release, publish or deploy without separate
 express authorization. Preserve unrelated changes and resources.
@@ -346,8 +346,9 @@ domain, use cases, ports, persistence/migrations, HTTP endpoints, permissions,
 resources and tests. No functional module may depend on removed examples.
 `erbas.dev.math` and `erbas.dev.statistics` are exclusively conformance/testing
 descriptors, registered only by explicit validation composition. They are never
-business capabilities or functional dependencies. Normal composition can contain
-zero modules. WMS and AI require their own separately approved designs.
+business capabilities or functional dependencies. Normal composition includes
+WMS UoM through the standard module pipeline.
+Further business capabilities and AI require separately approved designs.
 
 ## Engineering simplicity
 

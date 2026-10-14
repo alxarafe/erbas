@@ -109,7 +109,7 @@ that gate; INITIALIZED never substitutes for permission to execute functional wo
 
 ## CORE module administration
 
-Java adopts published ERBAS Contract `v0.5.0` through administrator-only
+Java adopts published ERBAS Contract `v0.6.0` through administrator-only
 `GET /api/modules` and `PATCH /api/modules/{id}`. Spring Security applies existing
 bearer authentication and the central `ADMIN` authority before MVC body/query
 validation, descriptor lookup or state changes. Missing/invalid authentication
@@ -126,7 +126,7 @@ module available. The list uses registry ID ordering before pagination and the
 same `PagedCollection` envelope, defaults, bounds and parser as Users, preserving
 COLLECTIONS-001 and existing user behavior. Empty and beyond-total windows return
 200 with complete metadata. Pagination and wire schemas are specified by the
-[published OpenAPI](https://github.com/alxarafe/erbas-contract/blob/v0.5.0/openapi/erbas.yaml).
+[published OpenAPI](https://github.com/alxarafe/erbas-contract/blob/v0.6.0/openapi/erbas.yaml).
 
 PATCH accepts exactly one required boolean `enabled`. Malformed JSON, arrays,
 scalars, missing/nonboolean values and extra fields return 400 `invalid_request`.
@@ -147,7 +147,8 @@ All specified responses are JSON with `Cache-Control: no-store`; only 401 carrie
 `validation` profile and `erbas.modules.conformance.enabled=true` are both set.
 The environment binding is `ERBAS_MODULES_CONFORMANCE_ENABLED`, default false.
 `docker/compose.validation.yaml` enables it explicitly; development/production
-composition does not register it. Normal startup remains valid with zero modules.
+composition does not register it. Normal startup registers WMS, without these
+conformance descriptors.
 
 The source contributes exactly `erbas.dev.math` (no dependencies) and
 `erbas.dev.statistics` (depends on Math), using `ModuleApi.CURRENT_VERSION`.
@@ -240,7 +241,16 @@ successful refresh. Modules can receive normal constructor-injected services;
 no application context or service locator is passed to their public contract.
 `ModuleRuntime` defensively copies its ordered list and rejects a second
 initialization attempt, including after failure. Startup is single-threaded.
-Java currently has zero production modules and continues to start normally.
+Java registers the production `WmsModule` bean through `SpringModuleSource`.
+Its stable `erbas.wms` descriptor uses `ModuleApi.CURRENT_VERSION` and no
+dependencies. `UomController` reuses that ID in `@ModuleEndpoint`; the ordinary
+state synchronization, dependency graph and runtime apply without WMS special cases.
+WMS owns its domain, application port, JDBC adapter and V5 catalogue migration.
+WMS contributes a native Spring Security `Customizer` applying the existing ADMIN
+authority before the MVC gate. CORE consumes these framework customizers before
+its authenticated fallback and does not import WMS types or know WMS routes.
+No CORE domain or runtime class owns warehouse concepts. See
+[WMS-001J](verification/wms-001-java.md) for the UoM boundary and evidence.
 
 A future external Java plugin contributing Spring services/controllers must be
 discovered early enough to register its configuration before the application
