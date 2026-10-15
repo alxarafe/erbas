@@ -3,6 +3,7 @@
 | Document | Purpose |
 | --- | --- |
 | [CLEANUP-001 verification](verification/cleanup-001.md) | Empty normal composition, canonical validation modules and regression evidence |
+| [WMS-002 Java verification](verification/wms-002-java.md) | Storage Attributes, published v0.7.0 adoption, Unicode, PostgreSQL, HTTP and shared conformance |
 | [WMS-001J verification](verification/wms-001-java.md) | Production WMS UoM, v0.6.0 adoption and validation evidence |
 | [Usage](usage.md) | Docker build, development, isolated validation and diagnostics |
 | [Modularity](modularity.md) | Module identity, dependency ordering, sequential initialization and Spring startup boundaries |
@@ -18,11 +19,11 @@
 | [AUTH-003 persistence verification](verification/auth-003-persistence.md) | Historical task 1 schema, JDBC decisions and isolated tests |
 | [AUTH-003 login verification](verification/auth-003-login.md) | Historical task 2 login and Spring Security verification |
 | [Working agreement](../AGENTS.md) | Persistent repository rules |
-| [Contract revision](../contract.revision) | Implemented published release v0.6.0 |
+| [Contract revision](../contract.revision) | Implemented published release v0.7.0 |
 
 Workflows run in their responsible repositories. Their badges can be displayed
 elsewhere without duplicating tests. Workflow status, the declared contractual
 release and a conformance result are distinct. Java CI invokes the complete
-`./bin/check`, including mandatory shared conformance against `v0.6.0`;
+`./bin/check`, including mandatory shared conformance against `v0.7.0`;
 see [validation and CI](usage.md#complete-validation). Verification reports
 retain their historical source revisions and results.

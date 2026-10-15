@@ -108,7 +108,7 @@ class WmsIntegrationIT {
     @Test
     void v5UpgradesV4WithoutChangingCoreDataAndFreshHistoryHasAllMigrations() {
         assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank",
-                String.class)).containsExactly("1", "2", "3", "4", "5");
+                String.class)).containsExactly("1", "2", "3", "4", "5", "6");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE NOT success", Integer.class)).isZero();
         String schema = "wms_it_v4_upgrade";
         var builder = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema)

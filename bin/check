@@ -47,13 +47,13 @@ check_contract() {
         *) echo 'ERROR: unexpected contract origin.' >&2; return 2 ;;
     esac
     revision="$(cat "$root/contract.revision")"
-    [[ "$revision" == v0.6.0 ]] || {
+    [[ "$revision" == v0.7.0 ]] || {
         echo 'ERROR: unsupported release in contract.revision.' >&2; return 2;
     }
     release_commit="$(git -C "$directory" rev-parse --verify "refs/tags/$revision^{commit}")" || {
         echo 'ERROR: contract checkout is missing the configured release tag.' >&2; return 2;
     }
-    [[ "$release_commit" == 92d1282154f340aadcfdf93f52a82a1f3472b335 ]] || {
+    [[ "$release_commit" == 76618b4d6776dca5e13466e7fde44af675d5b08f ]] || {
         echo 'ERROR: contract release tag does not resolve to its immutable commit.' >&2; return 2;
     }
     [[ "$(git -C "$directory" rev-parse HEAD)" == "$release_commit" ]] || {
@@ -263,7 +263,9 @@ DO $$ BEGIN
        OR (SELECT count(*) FROM flyway_schema_history WHERE version = '3' AND success) <> 1
        OR (SELECT count(*) FROM flyway_schema_history WHERE version = '4' AND success) <> 1
        OR (SELECT count(*) FROM flyway_schema_history WHERE version = '5' AND success) <> 1
+       OR (SELECT count(*) FROM flyway_schema_history WHERE version = '6' AND success) <> 1
        OR to_regclass('public.wms_uoms') IS NULL
+       OR to_regclass('public.wms_storage_attributes') IS NULL
        OR to_regclass('public.module_states') IS NULL
        OR EXISTS (SELECT 1 FROM flyway_schema_history WHERE NOT success)
        OR (SELECT count(*) FROM erbas_persistence_marker WHERE marker_id = 1) <> 1
@@ -294,6 +296,14 @@ SQL
     echo 'VALIDATION_ACCOUNT=verified COUNT=1 ENABLED=true ADMIN=true PASSWORD=encoded'
 }
 verify_fixture
+bounded 15 "${compose[@]}" exec -T postgres-api psql -U erbas_validation -d erbas_validation -v ON_ERROR_STOP=1 <<'SQL'
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM wms_uoms) OR EXISTS (SELECT 1 FROM wms_storage_attributes) THEN
+        RAISE EXCEPTION 'WMS catalogues must be empty before shared conformance';
+    END IF;
+END $$;
+SQL
+echo 'WMS_CATALOGUES=empty'
 
 # Capture a real emitted token only in memory so the final log check can detect it.
 # The generated email and hex password contain no JSON metacharacters. Values are
@@ -347,8 +357,9 @@ DO $$ BEGIN
        OR EXISTS (SELECT 1 FROM auth_user
                   WHERE password_hash !~ '^\{pbkdf2-sha256-600000\}[0-9a-f]{96}$')
        OR EXISTS (SELECT 1 FROM auth_access_token t LEFT JOIN auth_user u ON t.user_id = u.id WHERE u.id IS NULL)
-       OR (SELECT count(*) FROM flyway_schema_history WHERE success AND version IN ('1', '2', '3', '4', '5')) <> 5
+       OR (SELECT count(*) FROM flyway_schema_history WHERE success AND version IN ('1', '2', '3', '4', '5', '6')) <> 6
        OR to_regclass('public.wms_uoms') IS NULL
+       OR to_regclass('public.wms_storage_attributes') IS NULL
        OR EXISTS (SELECT 1 FROM flyway_schema_history WHERE NOT success) THEN
         RAISE EXCEPTION 'Post-conformance user state, credential storage, references or migration invariant failed';
     END IF;

@@ -2,7 +2,9 @@ package com.alxarafe.erbas.wms.infrastructure;
 
 import com.alxarafe.erbas.wms.WmsModule;
 import com.alxarafe.erbas.wms.application.UomCatalogue;
+import com.alxarafe.erbas.wms.application.StorageAttributeCatalogue;
 import com.alxarafe.erbas.wms.http.UomController;
+import com.alxarafe.erbas.wms.http.StorageAttributeController;
 import com.alxarafe.erbas.auth.infrastructure.BearerAuthenticationProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,9 +20,16 @@ public class WmsConfiguration {
     @Bean public JdbcUomStore uomStore(JdbcTemplate jdbc) { return new JdbcUomStore(jdbc); }
     @Bean public UomCatalogue uomCatalogue(JdbcUomStore store) { return new UomCatalogue(store); }
 
+    @Bean public JdbcStorageAttributeStore storageAttributeStore(JdbcTemplate jdbc) { return new JdbcStorageAttributeStore(jdbc); }
+    @Bean public StorageAttributeCatalogue storageAttributeCatalogue(JdbcStorageAttributeStore store) {
+        return new StorageAttributeCatalogue(store);
+    }
+
     @Bean
     public Customizer<AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry> wmsAuthorization() {
-        return authorize -> authorize.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher(UomController.UOMS_PATH))
+        return authorize -> authorize.requestMatchers(
+                        PathPatternRequestMatcher.withDefaults().matcher(UomController.UOMS_PATH),
+                        PathPatternRequestMatcher.withDefaults().matcher(StorageAttributeController.STORAGE_ATTRIBUTES_PATH))
                 .hasAuthority(BearerAuthenticationProvider.ADMIN_AUTHORITY);
     }
 }

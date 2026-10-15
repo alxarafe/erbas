@@ -109,7 +109,7 @@ that gate; INITIALIZED never substitutes for permission to execute functional wo
 
 ## CORE module administration
 
-Java adopts published ERBAS Contract `v0.6.0` through administrator-only
+Java adopts published ERBAS Contract `v0.7.0` through administrator-only
 `GET /api/modules` and `PATCH /api/modules/{id}`. Spring Security applies existing
 bearer authentication and the central `ADMIN` authority before MVC body/query
 validation, descriptor lookup or state changes. Missing/invalid authentication
@@ -126,7 +126,7 @@ module available. The list uses registry ID ordering before pagination and the
 same `PagedCollection` envelope, defaults, bounds and parser as Users, preserving
 COLLECTIONS-001 and existing user behavior. Empty and beyond-total windows return
 200 with complete metadata. Pagination and wire schemas are specified by the
-[published OpenAPI](https://github.com/alxarafe/erbas-contract/blob/v0.6.0/openapi/erbas.yaml).
+[published OpenAPI](https://github.com/alxarafe/erbas-contract/blob/v0.7.0/openapi/erbas.yaml).
 
 PATCH accepts exactly one required boolean `enabled`. Malformed JSON, arrays,
 scalars, missing/nonboolean values and extra fields return 400 `invalid_request`.
@@ -243,14 +243,19 @@ no application context or service locator is passed to their public contract.
 initialization attempt, including after failure. Startup is single-threaded.
 Java registers the production `WmsModule` bean through `SpringModuleSource`.
 Its stable `erbas.wms` descriptor uses `ModuleApi.CURRENT_VERSION` and no
-dependencies. `UomController` reuses that ID in `@ModuleEndpoint`; the ordinary
+dependencies. `UomController` and `StorageAttributeController` reuse that ID in `@ModuleEndpoint`; the ordinary
 state synchronization, dependency graph and runtime apply without WMS special cases.
-WMS owns its domain, application port, JDBC adapter and V5 catalogue migration.
+WMS owns both catalogues' domain/application/HTTP/JDBC adapters and the V5 UoM
+and V6 Storage Attribute migrations. Its descriptor and empty dependency list
+remain unchanged.
 WMS contributes a native Spring Security `Customizer` applying the existing ADMIN
 authority before the MVC gate. CORE consumes these framework customizers before
 its authenticated fallback and does not import WMS types or know WMS routes.
 No CORE domain or runtime class owns warehouse concepts. See
-[WMS-001J](verification/wms-001-java.md) for the UoM boundary and evidence.
+[WMS-001J](verification/wms-001-java.md) for historical UoM evidence and
+[WMS-002 Java](verification/wms-002-java.md) for current v0.7.0 adoption.
+Both controllers use the same module annotation, native ADMIN customizer and
+request-time gate; disable/re-enable preserves both catalogues without restart.
 
 A future external Java plugin contributing Spring services/controllers must be
 discovered early enough to register its configuration before the application
