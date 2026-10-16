@@ -82,11 +82,12 @@ Stop with `./bin/down` (use the same Compose project/environment configuration
 as startup). No database port is published by either lifecycle command.
 
 The host selects `classpath:db/core,classpath:db/wms`. CORE owns V1–V4 under
-`erbas-core/src/main/resources/db/core`; WMS owns the unchanged historical V5 under
+`erbas-core/src/main/resources/db/core`; WMS owns the unchanged historical V5 and new V6 under
 `modules/wms/src/main/resources/db/wms`. Flyway retains one shared history and
 validates the original names, versions and checksums. Existing V1–V5 databases
 need no repair, reset or baseline: V5 is resolved from its new owner and is not
-rerun. Future WMS migrations belong in WMS, with versions unique across the
+rerun. V6 adds `wms_storage_attributes` without changing existing rows or history.
+Future WMS migrations belong in WMS, with versions unique across the
 composed history. CORE alone migrates only platform tables on a fresh database.
 See the [migration decision](decisions/0002-physical-module-boundaries.md).
 
@@ -125,7 +126,7 @@ Each protected request resolves current `id`, `email`, `enabled` and `admin`
 from PostgreSQL. Disabling a user rejects existing bearers without deleting
 tokens; admin changes update the Spring Security principal and `ADMIN` authority
 on the next request. Java implements USERS-001 and COLLECTIONS-001 against the
-pinned published release `v0.6.0`.
+pinned published release `v0.7.0`.
 
 ### Basic user administration
 
@@ -164,7 +165,7 @@ The last enabled admin cannot be disabled or demoted. Self-disable/demotion is
 allowed when another enabled admin remains; the current update succeeds and
 subsequent bearer requests reflect the change. State updates reuse Task 2A's
 serialized PostgreSQL transaction. See [verification](verification/users-001.md)
-and the [shared contract](https://github.com/alxarafe/erbas-contract/blob/v0.6.0/docs/users-001.md).
+and the [shared contract](https://github.com/alxarafe/erbas-contract/blob/v0.7.0/docs/users-001.md).
 
 ### CORE module administration
 
@@ -198,8 +199,30 @@ module gate, then functional validation. Invalid input returns 400
 `invalid_request`; a duplicate code returns 409 `wms_uom_code_conflict`.
 Responses use JSON and no-store. Disable/re-enable through CORE module
 administration applies on the next request without restart and preserves data.
-There is no single-resource GET, update, delete or additional WMS domain yet.
+There is no single-resource GET, update or delete.
 See [WMS-001J evidence](verification/wms-001-java.md).
+
+### WMS Storage Attribute catalogue
+
+Administrator-only `POST /api/wms/storage-attributes` accepts exactly `code` and
+`name` and returns the persisted closed `{id, code, name}` object with 201.
+`GET /api/wms/storage-attributes` uses COLLECTIONS-001 pagination, fixed ordinal
+code ASC order and complete totals. Only offset/limit are accepted, once each;
+POST accepts no query parameters. Codes match `^[A-Z][A-Z0-9_]{0,29}$` exactly,
+including `IS_FOOD`; no case conversion, trimming or reserved-prefix veto applies.
+Names share UoM's ASCII-boundary normalization and 1–255 Unicode-scalar rules;
+NBSP/EM SPACE, internal whitespace and case remain user data, never translated.
+
+Authentication, administrator authorization and the dynamic WMS gate precede
+validation. Errors remain closed technical codes: 400 `invalid_request`, 401
+`unauthorized`, 403 `forbidden`, 409 `wms_storage_attribute_code_conflict` and 503
+`module_disabled`. Responses use JSON and no-store; only 401 includes the Bearer
+challenge. A PostgreSQL unique exact-code constraint resolves concurrent creates
+without overwriting the original. V6 belongs to `modules/wms/.../db/wms` and adds
+UUID identity, non-null code/name and C-collated code ordering/uniqueness. Disable
+and re-enable retain both catalogues without restart. No individual GET, updates,
+deletes, ItemFamilies, associations or WMS-003 behavior are implemented.
+See [WMS-002J evidence](verification/wms-002-java.md).
 
 ### Local login account
 
@@ -260,8 +283,9 @@ ERBAS_CONTRACT_DIR=/path/to/checkout/erbas-contract \
 
 `bin/check` is the sole complete validation entry point. Supply the root of
 `alxarafe/erbas-contract` at the published release in `contract.revision`,
-currently `v0.6.0`. The local `refs/tags/v0.6.0^{commit}` and checkout HEAD must
-both resolve to `92d1282154f340aadcfdf93f52a82a1f3472b335`. Repository root,
+currently `v0.7.0`. The local `refs/tags/v0.7.0^{commit}` and checkout HEAD must
+both resolve to `76618b4d6776dca5e13466e7fde44af675d5b08f`. The annotated tag
+object must be `c6cdbe0d90c63fb79b1bb36a96d67d822243ffdb`. Repository root,
 GitHub origin, tag resolution, HEAD and cleanliness are checked before resources
 are created and immediately before each contract call. Missing tags, unexpected
 tag targets, wrong HEAD, staged/unstaged tracked changes and nonignored untracked
@@ -271,11 +295,11 @@ unpublished-release opt-in. The caller supplies the checkout; Java only verifies
 For example, prepare a separate checkout with Git:
 
 ```bash
-git clone --branch v0.6.0 https://github.com/alxarafe/erbas-contract.git /path/to/checkout/erbas-contract
+git clone --branch v0.7.0 https://github.com/alxarafe/erbas-contract.git /path/to/checkout/erbas-contract
 ```
 
 GitHub Actions checks out Java into `erbas/` and `alxarafe/erbas-contract` at
-`ref: v0.6.0` into the sibling `erbas-contract/`. It runs `./bin/check` from
+`ref: v0.7.0` into the sibling `erbas-contract/`. It runs `./bin/check` from
 `erbas/` with `ERBAS_CONTRACT_DIR` pointing to that sibling. Contract files are
 outside Java's working tree and Docker build context. The workflow uses read-only
 repository permissions and does not persist checkout credentials. No host Java,
@@ -292,7 +316,7 @@ that profile finds no integration tests. This retains the existing Health,
 Authentication, Users, ModuleState, ModuleGating, ModuleAdministration and WMS
 integration tests, and adds isolated CORE-only migration, fresh composed startup,
 exact-base V1–V5 upgrade/data preservation and packaged-artifact checks,
-with real Flyway and JDBC. The persistence tests verify V1–V5 exactly once,
+with real Flyway and JDBC. The persistence tests verify V1–V6 exactly once,
 no authentication seed data, JDBC round trips, constraints, and token lookup
 eligibility at expiry and for disabled users. Tests roll back their fixture data.
 Authentication integration tests additionally verify login, real bearer use through
@@ -309,7 +333,7 @@ rejection, re-enabling, promotion/demotion with existing tokens, self-updates
 and last-admin error mapping.
 
 Java starts against the separate API database. Bounded health waiting, real
-Actuator HTTP and SQL assertions verify V1–V5 once, no failed migrations,
+Actuator HTTP and SQL assertions verify V1–V6 once, no failed migrations,
 marker 1, both auth tables, module state storage and WMS catalogue storage. Validation explicitly
 registers the two canonical conformance modules; normal synchronization inserts
 initially enabled states before runtime initialization. `bin/check` replaces any supplied test credentials
@@ -327,14 +351,14 @@ script then invokes the existing contract interface with its generated network:
 
 This illustrates the internal call, not another complete validation entry point.
 The sole shared collection is invoked with PostgreSQL available, without skips.
-The pinned published v0.6.0 contains 182 request definitions and 714 named checks,
+The pinned published v0.7.0 contains 266 request definitions and 1050 named checks,
 including USERS-001, COLLECTIONS-001, CONTRACT-003 module administration and
-CONTRACT-003A canonical development descriptors, plus WMS UoM. It requires disposable isolated
+CONTRACT-003A canonical development descriptors, plus WMS UoM and Storage Attributes (84 new requests/336 checks). It requires disposable isolated
 validation data, creates unique
 users; do not run this mutating suite against production. No conformance skip
 switch is provided. Earlier [COLLECTIONS-001 evidence](verification/collections-001.md)
 remains historical; current adoption evidence is in
-[WMS-001J](verification/wms-001-java.md). The suite mutates canonical
+[WMS-002J](verification/wms-002-java.md). The suite mutates canonical
 module flags and leaves both enabled on success.
 The runner withholds detailed Bruno output to protect credentials and tokens.
 After shared conformance, SQL verifies that the validation admin is preserved,
@@ -410,5 +434,5 @@ ERBAS_CONTRACT_DIR=/path/to/checkout/erbas-contract \
 ```
 
 GitHub Actions invokes the same authoritative `./bin/check` against published
-`v0.6.0`, including mandatory shared Bruno conformance.
+`v0.7.0`, including mandatory shared Bruno conformance.
 Local success does not authorize publication or deployment.

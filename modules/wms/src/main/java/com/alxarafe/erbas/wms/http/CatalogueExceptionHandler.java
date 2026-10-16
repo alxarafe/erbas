@@ -6,10 +6,10 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice(assignableTypes = UomController.class)
-public class UomExceptionHandler {
+@RestControllerAdvice(assignableTypes = {UomController.class, StorageAttributeController.class})
+public class CatalogueExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<?> unreadableRequest() {
-        return UomController.error(HttpStatus.BAD_REQUEST, UomController.INVALID_REQUEST);
+        return CatalogueHttp.error(HttpStatus.BAD_REQUEST, CatalogueHttp.INVALID_REQUEST);
     }
 }

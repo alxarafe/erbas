@@ -22,7 +22,7 @@ produce an executable application. Three artifacts compose the one process:
 | Source root | Artifact | Responsibility | Internal dependencies |
 | --- | --- | --- | --- |
 | `erbas-core/` | `erbas-core` | Non-disableable platform: Health, HTTP/i18n, authentication, users, collections, module contracts/runtime/gating and CORE persistence | None |
-| `modules/wms/` | `erbas-wms` | Existing WMS UoM domain/application, HTTP/JDBC adapters, Spring composition and migration resources | CORE |
+| `modules/wms/` | `erbas-wms` | WMS UoM and StorageAttribute domain/application, HTTP/JDBC adapters, Spring composition and migration resources | CORE |
 | `erbas-host/` | `erbas-host` | Executable Spring Boot composition root and runtime configuration | CORE and WMS |
 
 Java packages remain stable. `ErbasApplication` imports `CoreConfiguration` and
@@ -140,7 +140,7 @@ that gate; INITIALIZED never substitutes for permission to execute functional wo
 
 ## CORE module administration
 
-Java adopts published ERBAS Contract `v0.6.0` through administrator-only
+Java adopts published ERBAS Contract `v0.7.0` through administrator-only
 `GET /api/modules` and `PATCH /api/modules/{id}`. Spring Security applies existing
 bearer authentication and the central `ADMIN` authority before MVC body/query
 validation, descriptor lookup or state changes. Missing/invalid authentication
@@ -157,7 +157,7 @@ module available. The list uses registry ID ordering before pagination and the
 same `PagedCollection` envelope, defaults, bounds and parser as Users, preserving
 COLLECTIONS-001 and existing user behavior. Empty and beyond-total windows return
 200 with complete metadata. Pagination and wire schemas are specified by the
-[published OpenAPI](https://github.com/alxarafe/erbas-contract/blob/v0.6.0/openapi/erbas.yaml).
+[published OpenAPI](https://github.com/alxarafe/erbas-contract/blob/v0.7.0/openapi/erbas.yaml).
 
 PATCH accepts exactly one required boolean `enabled`. Malformed JSON, arrays,
 scalars, missing/nonboolean values and extra fields return 400 `invalid_request`.
