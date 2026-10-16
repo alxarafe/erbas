@@ -35,8 +35,10 @@ See [USERS-001 verification](docs/verification/users-001.md) and
 
 CORE module administration lists available descriptors and changes persistent
 enabled state atomically, respecting dependencies. Normal startup includes the
-production WMS module and its UoM catalogue;
-canonical development modules are explicitly enabled only in disposable
+production WMS module and its UoM catalogue. The Maven reactor physically separates
+CORE/platform, WMS and the executable host, which explicitly composes both.
+See the [physical architecture decision](docs/decisions/0002-physical-module-boundaries.md).
+Canonical development modules are explicitly enabled only in disposable
 conformance composition. See [modularity](docs/modularity.md#core-module-administration).
 
 The same client provides authenticated profiles and basic administrator user

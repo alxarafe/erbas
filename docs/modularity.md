@@ -14,6 +14,37 @@ Built-in modules and future third-party modules use the same pipeline:
 ModuleSource(s) -> ModuleRegistry -> ModuleGraph -> ModuleRuntime
 ```
 
+## Physical Maven ownership
+
+The root `pom.xml` is an aggregator and dependency-management parent. It does not
+produce an executable application. Three artifacts compose the one process:
+
+| Source root | Artifact | Responsibility | Internal dependencies |
+| --- | --- | --- | --- |
+| `erbas-core/` | `erbas-core` | Non-disableable platform: Health, HTTP/i18n, authentication, users, collections, module contracts/runtime/gating and CORE persistence | None |
+| `modules/wms/` | `erbas-wms` | Existing WMS UoM domain/application, HTTP/JDBC adapters, Spring composition and migration resources | CORE |
+| `erbas-host/` | `erbas-host` | Executable Spring Boot composition root and runtime configuration | CORE and WMS |
+
+Java packages remain stable. `ErbasApplication` imports `CoreConfiguration` and
+`WmsConfiguration` explicitly; it does not scan the parent package to discover
+functional modules. CORE scans only its owned platform packages. WMS explicitly
+imports its own HTTP adapters and registers its services, descriptor and Spring
+Security customizer. Both authentication and that customizer use the generic
+`PlatformAuthorities.ADMINISTRATOR` contract, with the same existing authority.
+No WMS domain or persistence classes are imported by the production host.
+
+CORE builds and tests without WMS. WMS domain/application remain free of Spring,
+JDBC, Flyway, HTTP adapters and host classes. Host tests cover the composed
+application and real PostgreSQL; owning modules retain their native tests.
+Permanent source/POM/resource guards and packaged-JAR integration guards enforce
+these boundaries. See the [architecture decision](decisions/0002-physical-module-boundaries.md)
+for migration compatibility and verification commands.
+
+Installed WMS remains available and technically initialized when disabled. Its
+artifact, schema and data stay installed; only functional access is gated.
+Removing an installed module artifact from an existing database is not an
+uninstallation mechanism. There is no dynamic plugin loader or separate service.
+
 ## Descriptor, version and availability
 
 `ModuleDescriptor` is immutable and contains only an ID, Module API version and

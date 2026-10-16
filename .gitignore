@@ -2,7 +2,7 @@
 /private/
 
 # Maven output
-/target/
+**/target/
 
 # IDE and operating-system files
 /.idea/
