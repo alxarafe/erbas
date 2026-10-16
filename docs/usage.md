@@ -81,7 +81,16 @@ is already installed on the host, run `curl http://127.0.0.1:48080/health`.
 Stop with `./bin/down` (use the same Compose project/environment configuration
 as startup). No database port is published by either lifecycle command.
 
-Flyway reads `src/main/resources/db/migration` at startup. V1 creates
+The host selects `classpath:db/core,classpath:db/wms`. CORE owns V1–V4 under
+`erbas-core/src/main/resources/db/core`; WMS owns the unchanged historical V5 under
+`modules/wms/src/main/resources/db/wms`. Flyway retains one shared history and
+validates the original names, versions and checksums. Existing V1–V5 databases
+need no repair, reset or baseline: V5 is resolved from its new owner and is not
+rerun. Future WMS migrations belong in WMS, with versions unique across the
+composed history. CORE alone migrates only platform tables on a fresh database.
+See the [migration decision](decisions/0002-physical-module-boundaries.md).
+
+V1 creates
 `erbas_persistence_marker` and inserts marker 1. V2 adds the minimal authentication
 persistence (`auth_user` and `auth_access_token`) without seeding any users or
 tokens. V3 adds non-null `admin`, defaulting existing users to false. Login and
@@ -273,11 +282,16 @@ repository permissions and does not persist checkout credentials. No host Java,
 Maven, Node or Bruno is required. All validation and cleanup remain owned by
 `bin/check`; any preflight, test, startup, conformance or cleanup failure fails CI.
 
-The check validates Compose, builds the unchanged Dockerfile and executes the
-regular native suite in a fresh container even with cached layers. Two fresh
-PostgreSQL instances must have empty public schemas. Maven explicitly selects
-`HealthIntegrationIT,AuthenticationPersistenceIT,AuthenticationIntegrationIT,AuthenticationBootstrapIT,UsersFoundationIT,UsersIntegrationIT,ModuleStateIT,ModuleGatingIT,ModuleAdministrationIT,WmsIntegrationIT`
-against its own PostgreSQL,
+The check validates Compose and builds the host runtime image from the Maven
+reactor. It separately runs `-pl erbas-core clean verify` without selecting WMS
+or the host, then executes the complete reactor native suite in a fresh
+container even with cached layers. Two fresh PostgreSQL instances must have
+empty public schemas. The Maven `integration` profile selects all `*IT` classes
+in their owning modules against the native PostgreSQL. CORE and host fail if
+that profile finds no integration tests. This retains the existing Health,
+Authentication, Users, ModuleState, ModuleGating, ModuleAdministration and WMS
+integration tests, and adds isolated CORE-only migration, fresh composed startup,
+exact-base V1–V5 upgrade/data preservation and packaged-artifact checks,
 with real Flyway and JDBC. The persistence tests verify V1–V5 exactly once,
 no authentication seed data, JDBC round trips, constraints, and token lookup
 eligibility at expiry and for disabled users. Tests roll back their fixture data.

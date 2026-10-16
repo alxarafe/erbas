@@ -12,6 +12,7 @@ fi
 for tool in git docker timeout od; do
     command -v "$tool" >/dev/null || { echo "ERROR: missing host tool: $tool" >&2; exit 2; }
 done
+readonly maven_timeout_seconds=900
 bounded() { local seconds="$1"; shift; timeout --kill-after=10s "$seconds" "$@"; }
 
 # An empty result is evidence only after a successful query. Never put a Docker
@@ -214,9 +215,11 @@ trap 'exit 143' TERM
 echo "RUN_ID=$project NETWORK=$network SCENARIO=$scenario"
 
 bounded 30 "${compose[@]}" config --quiet
-bounded 900 "${compose[@]}" build native-tests app
+bounded "$maven_timeout_seconds" "${compose[@]}" build native-tests app
+# CORE must compile and test without selecting WMS or the host reactor modules.
+bounded "$maven_timeout_seconds" "${compose[@]}" run --rm --no-deps core-tests
 # Always execute native tests in a fresh container, even with cached image layers.
-bounded 900 "${compose[@]}" run --rm --no-deps native-tests
+bounded "$maven_timeout_seconds" "${compose[@]}" run --rm --no-deps native-tests
 bounded 120 "${compose[@]}" up --detach --wait --wait-timeout 110 postgres-native postgres-api
 
 assert_empty() {
@@ -228,7 +231,7 @@ assert_empty() {
 }
 assert_empty postgres-native
 assert_empty postgres-api
-bounded 900 "${compose[@]}" run --rm --no-deps native-integration
+bounded "$maven_timeout_seconds" "${compose[@]}" run --rm --no-deps native-integration
 bounded 30 "${compose[@]}" up --detach --no-deps app
 docker_query 15 'application container identity' "${compose[@]}" ps --all --quiet app
 app_id="$query_result"

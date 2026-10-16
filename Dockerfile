@@ -12,7 +12,7 @@ WORKDIR /app
 RUN microdnf install -y curl \
     && microdnf clean all \
     && rm -rf /var/cache/yum
-COPY --from=build /workspace/target/erbas-0.1.0-SNAPSHOT.jar /app/erbas.jar
+COPY --from=build /workspace/erbas-host/target/erbas-host-0.1.0-SNAPSHOT.jar /app/erbas.jar
 
 RUN chown -R 10001:0 /app
 USER 10001

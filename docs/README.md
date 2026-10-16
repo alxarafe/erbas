@@ -5,7 +5,8 @@
 | [CLEANUP-001 verification](verification/cleanup-001.md) | Empty normal composition, canonical validation modules and regression evidence |
 | [WMS-001J verification](verification/wms-001-java.md) | Production WMS UoM, v0.6.0 adoption and validation evidence |
 | [Usage](usage.md) | Docker build, development, isolated validation and diagnostics |
-| [Modularity](modularity.md) | Module identity, dependency ordering, sequential initialization and Spring startup boundaries |
+| [Modularity](modularity.md) | Physical CORE/WMS/host boundaries, module identity, dependency ordering and Spring composition |
+| [Physical module ADR](decisions/0002-physical-module-boundaries.md) | Maven ownership, explicit composition and existing-V5 migration compatibility |
 | [API internationalization](i18n.md) | Native locale negotiation, module-owned bundles and Jakarta Validation with closed technical contract errors |
 | [I18N-001 verification](verification/i18n-001.md) | HTTP locale/validation tests, artifact boundary, shared conformance and cleanup evidence |
 | [MODULES-001E-JAVA verification](verification/modules-001e-java.md) | Published v0.5.0 adoption, CORE module administration, explicit conformance composition and validation evidence |
