@@ -73,7 +73,7 @@ No host Java, Maven or Bruno is needed. See [usage](docs/usage.md).
 
 ## Status and documentation
 
-Java implements the published ERBAS Contract `v0.7.0`, recorded in
+Java implements the published ERBAS Contract `v0.8.0`, recorded in
 [contract.revision](contract.revision). The supplied checkout must be clean and
 its release tag and HEAD must resolve to the expected immutable commit.
 `./bin/check` is authoritative locally and in GitHub Actions, where shared Bruno
@@ -81,7 +81,7 @@ conformance against the same published release is mandatory. The CI badge
 reports workflow results; [AUTH-003](docs/verification/auth-003.md) and
 [COLLECTIONS-001](docs/verification/collections-001.md) retain historical local
 verification evidence against earlier revisions.
-Current local adoption evidence is in [WMS-002J](docs/verification/wms-002-java.md).
+Current local adoption evidence is in [WMS-003J](docs/verification/wms-003-java.md).
 
 The .NET badge reports the .NET workflow, including its shared Bruno checks;
 it does not establish Java conformance. Angular client CI verifies its own

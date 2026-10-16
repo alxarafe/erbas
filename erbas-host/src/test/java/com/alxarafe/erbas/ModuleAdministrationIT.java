@@ -213,7 +213,7 @@ class ModuleAdministrationIT {
     }
     private void assertError(HttpResponse<String> response, HttpStatus status, String code) {
         assertJson(response, status);
-        assertThat(json.readTree(response.body())).isEqualTo(json.valueToTree(Map.of("code", code)));
+        assertThat(json.readTree(response.body())).isEqualTo(json.valueToTree(Map.of("code", code, "errors", java.util.List.of(Map.of("code", code)))));
     }
     private void assertJson(HttpResponse<String> response, HttpStatus status) {
         assertThat(response.statusCode()).isEqualTo(status.value());

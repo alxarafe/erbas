@@ -313,6 +313,6 @@ class StorageAttributeIntegrationIT {
     }
     private void assertError(HttpResponse<String> response, HttpStatus status, String code) {
         assertJson(response, status);
-        assertThat(json.readTree(response.body())).isEqualTo(json.valueToTree(Map.of(StorageAttributeController.CODE_FIELD, code)));
+        assertThat(json.readTree(response.body())).isEqualTo(json.valueToTree(Map.of(StorageAttributeController.CODE_FIELD, code, "errors", java.util.List.of(Map.of(StorageAttributeController.CODE_FIELD, code)))));
     }
 }

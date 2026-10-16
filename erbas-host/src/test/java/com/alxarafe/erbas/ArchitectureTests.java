@@ -47,7 +47,7 @@ class ArchitectureTests {
     void coreProductionSourcesAndResourcesHaveNoWmsBusinessKnowledge() throws Exception {
         for (var file : files(CORE.resolve("src/main"))) {
             assertThat(Files.readString(file)).as(file.toString()).doesNotContain(WMS_PACKAGE,
-                    "WmsModule", "/api/wms", "wms_uoms");
+                    "WmsModule", "/api/wms", "wms_uoms", "ItemFamily", "wms_item_families", "wms_item_family", "wms_storage_attribute");
         }
     }
 
@@ -102,6 +102,14 @@ class ArchitectureTests {
                     : WMS.resolve(RESOURCES + "/db/wms");
             assertThat(Files.readAllBytes(owner.resolve(entry.getKey()))).isEqualTo(legacy);
         }
+    }
+
+    @Test
+    void storageMigrationFixtureIsPinnedToPublishedV070() throws Exception {
+        var fixture = Files.readAllBytes(HOST.resolve("src/test/resources/db/legacy-v070/V6__wms_storage_attributes.sql"));
+        assertThat(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(fixture)))
+                .isEqualTo("e1c24def95853e1a9d1c213d9fe0e5b590dd5daf88c14e6d1dc084a2b132c025");
+        assertThat(Files.readAllBytes(WMS.resolve(RESOURCES + "/db/wms/V6__wms_storage_attributes.sql"))).isEqualTo(fixture);
     }
 
     private static List<Path> files(Path directory) throws IOException {

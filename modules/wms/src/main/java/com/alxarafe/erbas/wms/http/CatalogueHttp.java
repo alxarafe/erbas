@@ -1,10 +1,10 @@
 package com.alxarafe.erbas.wms.http;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import com.alxarafe.erbas.adapter.http.PagedCollection;
+import com.alxarafe.erbas.adapter.http.ContractError;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -15,6 +15,7 @@ import tools.jackson.core.StreamReadConstraints;
 import tools.jackson.core.StreamReadFeature;
 import tools.jackson.core.json.JsonFactory;
 import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /** Strict request and response mechanics shared by the WMS catalogue adapters. */
@@ -31,16 +32,22 @@ final class CatalogueHttp {
             .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION).build())
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build();
 
-
     private CatalogueHttp() { }
 
     static Optional<CreateInput> input(String body, String textField) {
+        var object = object(body);
+        if (object.isEmpty()) return Optional.empty();
+        var request = object.orElseThrow();
+        if (request.size() != 2
+                || !request.has(CODE_FIELD) || !request.get(CODE_FIELD).isString()
+                || !request.has(textField) || !request.get(textField).isString()) return Optional.empty();
+        return Optional.of(new CreateInput(request.get(CODE_FIELD).asString(), request.get(textField).asString()));
+    }
+
+    static Optional<JsonNode> object(String body) {
         try {
             var request = PARSER.readTree(body);
-            if (request == null || !request.isObject() || request.size() != 2
-                    || !request.has(CODE_FIELD) || !request.get(CODE_FIELD).isString()
-                    || !request.has(textField) || !request.get(textField).isString()) return Optional.empty();
-            return Optional.of(new CreateInput(request.get(CODE_FIELD).asString(), request.get(textField).asString()));
+            return request != null && request.isObject() ? Optional.of(request) : Optional.empty();
         } catch (JacksonException malformed) {
             return Optional.empty();
         }
@@ -54,7 +61,7 @@ final class CatalogueHttp {
         return PagedCollection.pagination(query.getFirst(OFFSET_QUERY), query.getFirst(LIMIT_QUERY));
     }
 
-    static ResponseEntity<Object> error(HttpStatus status, String code) { return json(status, Map.of(CODE_FIELD, code)); }
+    static ResponseEntity<Object> error(HttpStatus status, String code) { return json(status, ContractError.of(code)); }
 
     static ResponseEntity<Object> json(HttpStatus status, Object body) {
         return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON)

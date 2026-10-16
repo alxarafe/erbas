@@ -70,7 +70,7 @@ class UsersIntegrationIT {
         String normalToken = login(email, password);
         send(get("/api/users"), normalToken).andExpect(status().isForbidden())
                 .andExpect(header().doesNotExist("WWW-Authenticate"))
-                .andExpect(content().json("{\"code\":\"forbidden\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"forbidden\",\"errors\":[{\"code\":\"forbidden\"}]}", JsonCompareMode.STRICT));
         update(id, "{\"admin\":true}").andExpect(status().isOk()).andExpect(jsonPath("$.admin").value(true));
         send(get("/api/users"), normalToken).andExpect(status().isOk());
         update(id, "{\"admin\":false}").andExpect(status().isOk());
@@ -78,11 +78,11 @@ class UsersIntegrationIT {
         update(id, "{\"enabled\":false}").andExpect(status().isOk()).andExpect(jsonPath("$.enabled").value(false));
         send(get("/api/auth/me"), normalToken).andExpect(status().isUnauthorized())
                 .andExpect(header().string("WWW-Authenticate", "Bearer"))
-                .andExpect(content().json("{\"code\":\"unauthorized\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"unauthorized\",\"errors\":[{\"code\":\"unauthorized\"}]}", JsonCompareMode.STRICT));
         mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(Map.of("email", email, "password", password))))
                 .andExpect(status().isUnauthorized())
-                .andExpect(content().json("{\"code\":\"invalid_credentials\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"invalid_credentials\",\"errors\":[{\"code\":\"invalid_credentials\"}]}", JsonCompareMode.STRICT));
         update(id, "{\"enabled\":true,\"admin\":false}").andExpect(status().isOk());
         String renewed = login(email, password);
         send(get("/api/auth/me"), renewed).andExpect(status().isOk()).andExpect(jsonPath("$.enabled").value(true));
@@ -139,7 +139,7 @@ class UsersIntegrationIT {
     void invalidPaginationReturnsContractErrorWithoutChangingUsers(String query) throws Exception {
         var parts = query.split("=", -1);
         send(get("/api/users").param(parts[0], parts[1]), adminToken).andExpect(status().isBadRequest())
-                .andExpect(content().json("{\"code\":\"invalid_request\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"invalid_request\",\"errors\":[{\"code\":\"invalid_request\"}]}", JsonCompareMode.STRICT));
         assertThat(store.countUsers()).isEqualTo(1);
     }
 
@@ -147,7 +147,7 @@ class UsersIntegrationIT {
     @ValueSource(strings = {"{\"admin\":false}", "{\"enabled\":false}"})
     void lastAdminHttpOutcomePreservesDatabaseState(String body) throws Exception {
         update(Long.toString(adminId), body).andExpect(status().isConflict())
-                .andExpect(content().json("{\"code\":\"last_admin\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"last_admin\",\"errors\":[{\"code\":\"last_admin\"}]}", JsonCompareMode.STRICT));
         assertThat(store.findUserById(adminId).orElseThrow().admin()).isTrue();
         assertThat(store.findUserById(adminId).orElseThrow().enabled()).isTrue();
     }
@@ -159,7 +159,7 @@ class UsersIntegrationIT {
         update(Long.toString(adminId), disable ? "{\"enabled\":false}" : "{\"admin\":false}")
                 .andExpect(status().isOk());
         send(get("/api/users"), adminToken).andExpect(status().is(disable ? 401 : 403))
-                .andExpect(content().json(disable ? "{\"code\":\"unauthorized\"}" : "{\"code\":\"forbidden\"}",
+                .andExpect(content().json(disable ? "{\"code\":\"unauthorized\",\"errors\":[{\"code\":\"unauthorized\"}]}" : "{\"code\":\"forbidden\",\"errors\":[{\"code\":\"forbidden\"}]}",
                         JsonCompareMode.STRICT));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_user WHERE enabled AND admin", Integer.class))
                 .isEqualTo(1);
@@ -173,7 +173,7 @@ class UsersIntegrationIT {
         store.updateUserState(id, false, null);
         send(request(HttpMethod.valueOf(method), path).contentType(MediaType.APPLICATION_JSON).content("{}"), token)
                 .andExpect(status().isUnauthorized()).andExpect(header().string("WWW-Authenticate", "Bearer"))
-                .andExpect(content().json("{\"code\":\"unauthorized\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"unauthorized\",\"errors\":[{\"code\":\"unauthorized\"}]}", JsonCompareMode.STRICT));
     }
 
     private String login(String email, String password) throws Exception {

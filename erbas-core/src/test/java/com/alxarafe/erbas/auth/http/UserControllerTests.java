@@ -74,7 +74,7 @@ class UserControllerTests {
                     .andExpect(status().isUnauthorized()).andExpect(header().string("WWW-Authenticate", "Bearer"))
                     .andExpect(header().string("Cache-Control", "no-store"))
                     .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                    .andExpect(content().json("{\"code\":\"unauthorized\"}", JsonCompareMode.STRICT));
+                    .andExpect(content().json("{\"code\":\"unauthorized\",\"errors\":[{\"code\":\"unauthorized\"}]}", JsonCompareMode.STRICT));
         }
         verifyNoInteractions(store);
     }
@@ -84,7 +84,7 @@ class UserControllerTests {
     void authorizationPrecedesLookupAndValidation(String method, String path) throws Exception {
         send(request(org.springframework.http.HttpMethod.valueOf(method), path), false)
                 .andExpect(status().isForbidden()).andExpect(header().doesNotExist("WWW-Authenticate"))
-                .andExpect(content().json("{\"code\":\"forbidden\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"forbidden\",\"errors\":[{\"code\":\"forbidden\"}]}", JsonCompareMode.STRICT));
         verifyNoInteractions(store, encoder);
     }
 
@@ -104,10 +104,10 @@ class UserControllerTests {
     @ValueSource(strings = {"unknown", "0", "-1", "9223372036854775808", "999"})
     void unusableAndUnknownIdsAreNotFound(String id) throws Exception {
         send(get("/api/users/" + id), true).andExpect(status().isNotFound())
-                .andExpect(content().json("{\"code\":\"user_not_found\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"user_not_found\",\"errors\":[{\"code\":\"user_not_found\"}]}", JsonCompareMode.STRICT));
         send(patch("/api/users/" + id).contentType(MediaType.APPLICATION_JSON).content("{\"admin\":false}"), true)
                 .andExpect(status().isNotFound())
-                .andExpect(content().json("{\"code\":\"user_not_found\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"user_not_found\",\"errors\":[{\"code\":\"user_not_found\"}]}", JsonCompareMode.STRICT));
     }
 
     @ParameterizedTest
@@ -145,7 +145,7 @@ class UserControllerTests {
     void invalidPaginationNeverReachesPersistence(String query) throws Exception {
         var parts = query.split("=", -1);
         send(get("/api/users").param(parts[0], parts[1]), true).andExpect(status().isBadRequest())
-                .andExpect(content().json("{\"code\":\"invalid_request\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"invalid_request\",\"errors\":[{\"code\":\"invalid_request\"}]}", JsonCompareMode.STRICT));
         verifyNoInteractions(store, encoder);
     }
 
@@ -155,7 +155,7 @@ class UserControllerTests {
         mvc.perform(get("/api/users").param("offset", "-1"))
                 .andExpect(status().isUnauthorized()).andExpect(header().string("WWW-Authenticate", "Bearer"))
                 .andExpect(header().string("Cache-Control", "no-store"))
-                .andExpect(content().json("{\"code\":\"unauthorized\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"unauthorized\",\"errors\":[{\"code\":\"unauthorized\"}]}", JsonCompareMode.STRICT));
         verifyNoInteractions(store, encoder);
     }
 
@@ -173,7 +173,7 @@ class UserControllerTests {
             verify(encoder).encode(password);
         } else {
             response.andExpect(status().isBadRequest())
-                    .andExpect(content().json("{\"code\":\"invalid_request\"}", JsonCompareMode.STRICT));
+                    .andExpect(content().json("{\"code\":\"invalid_request\",\"errors\":[{\"code\":\"invalid_request\"}]}", JsonCompareMode.STRICT));
             verifyNoInteractions(encoder, store);
         }
     }
@@ -199,7 +199,7 @@ class UserControllerTests {
         send(post("/api/users").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"user\",\"password\":\"abcdefghijkl\",\"admin\":false}"), true)
                 .andExpect(status().isConflict())
-                .andExpect(content().json("{\"code\":\"email_conflict\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"email_conflict\",\"errors\":[{\"code\":\"email_conflict\"}]}", JsonCompareMode.STRICT));
     }
 
     @ParameterizedTest
@@ -222,7 +222,7 @@ class UserControllerTests {
     void invalidCreationNeverHashesOrPersists(String body) throws Exception {
         send(post("/api/users").contentType(MediaType.APPLICATION_JSON).content(body), true)
                 .andExpect(status().isBadRequest())
-                .andExpect(content().json("{\"code\":\"invalid_request\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"invalid_request\",\"errors\":[{\"code\":\"invalid_request\"}]}", JsonCompareMode.STRICT));
         verifyNoInteractions(store, encoder);
     }
 
@@ -235,7 +235,7 @@ class UserControllerTests {
     void invalidPatchNeverUpdates(String body) throws Exception {
         send(patch("/api/users/2").contentType(MediaType.APPLICATION_JSON).content(body), true)
                 .andExpect(status().isBadRequest())
-                .andExpect(content().json("{\"code\":\"invalid_request\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"invalid_request\",\"errors\":[{\"code\":\"invalid_request\"}]}", JsonCompareMode.STRICT));
         verifyNoInteractions(store);
     }
 
@@ -258,7 +258,7 @@ class UserControllerTests {
                 .thenReturn(new UserUpdateResult(UserUpdateOutcome.LAST_ADMIN, null));
         send(patch("/api/users/1").contentType(MediaType.APPLICATION_JSON).content(body), true)
                 .andExpect(status().isConflict())
-                .andExpect(content().json("{\"code\":\"last_admin\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"last_admin\",\"errors\":[{\"code\":\"last_admin\"}]}", JsonCompareMode.STRICT));
     }
 
     private ResultActions send(MockHttpServletRequestBuilder request, boolean admin) throws Exception {

@@ -1,5 +1,7 @@
 package com.alxarafe.erbas.auth.http;
 
+import com.alxarafe.erbas.adapter.http.ContractError;
+
 import java.util.Map;
 
 import com.alxarafe.erbas.adapter.http.PagedCollection;
@@ -103,7 +105,7 @@ public class UserController {
 
     private static boolean isBoolean(JsonNode value) { return value != null && value.isBoolean(); }
 
-    static ResponseEntity<Object> error(int status, String code) { return json(status, Map.of("code", code)); }
+    static ResponseEntity<Object> error(int status, String code) { return json(status, ContractError.of(code)); }
 
     private static ResponseEntity<Object> json(int status, Object body) {
         return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON)

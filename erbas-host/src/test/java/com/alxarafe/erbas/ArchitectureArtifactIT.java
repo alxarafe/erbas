@@ -23,8 +23,8 @@ class ArchitectureArtifactIT {
             var wmsFiles = wms.stream().map(entry -> entry.getName()).toList();
             assertThat(coreFiles.stream().filter(name -> name.endsWith(".sql")))
                     .hasSize(4).allMatch(name -> name.startsWith("db/core/"));
-            assertThat(coreFiles).noneMatch(name -> name.contains("/wms/") || name.contains("legacy-v060"));
-            assertThat(wmsFiles).contains("db/wms/V5__wms_uoms.sql");
+            assertThat(coreFiles).noneMatch(name -> name.contains("/wms/") || name.contains("legacy-v060") || name.contains("legacy-v070"));
+            assertThat(wmsFiles).contains("db/wms/V5__wms_uoms.sql", "db/wms/V6__wms_storage_attributes.sql", "db/wms/V7__wms_item_families.sql");
             for (var library : List.of(core, wms)) {
                 assertThat(library.getManifest().getMainAttributes().getValue("Main-Class")).isNull();
                 assertThat(library.stream().map(entry -> entry.getName())).noneMatch(name -> name.startsWith("BOOT-INF/"));
@@ -41,7 +41,7 @@ class ArchitectureArtifactIT {
             var entries = host.stream().map(entry -> entry.getName()).toList();
             assertThat(entries).contains("BOOT-INF/lib/" + CORE_ARTIFACT + "-" + VERSION + ".jar",
                     "BOOT-INF/lib/" + WMS_ARTIFACT + "-" + VERSION + ".jar");
-            assertThat(entries).noneMatch(name -> name.contains("legacy-v060") || name.startsWith("BOOT-INF/classes/i18n/probe/"));
+            assertThat(entries).noneMatch(name -> name.contains("legacy-v060") || name.contains("legacy-v070") || name.startsWith("BOOT-INF/classes/i18n/probe/"));
         }
     }
 

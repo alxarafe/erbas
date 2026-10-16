@@ -152,7 +152,7 @@ class ModuleGatingIT {
 
     private void assertDisabled(HttpResponse<String> response) {
         assertThat(response.statusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE.value());
-        assertThat(json.readTree(response.body())).isEqualTo(json.valueToTree(Map.of("code", ModuleEndpointInterceptor.DISABLED_CODE)));
+        assertThat(json.readTree(response.body())).isEqualTo(json.valueToTree(Map.of("code", ModuleEndpointInterceptor.DISABLED_CODE, "errors", java.util.List.of(Map.of("code", ModuleEndpointInterceptor.DISABLED_CODE)))));
         assertThat(response.headers().firstValue(HttpHeaders.CONTENT_TYPE).orElseThrow()).startsWith(MediaType.APPLICATION_JSON_VALUE);
         assertThat(response.headers().firstValue(HttpHeaders.CACHE_CONTROL)).contains(CacheControl.noStore().getHeaderValue());
         assertThat(response.headers().firstValue(HttpHeaders.WWW_AUTHENTICATE)).isEmpty();

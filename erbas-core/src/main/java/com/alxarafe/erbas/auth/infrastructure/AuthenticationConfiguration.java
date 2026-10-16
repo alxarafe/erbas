@@ -1,6 +1,7 @@
 package com.alxarafe.erbas.auth.infrastructure;
 
 import com.alxarafe.erbas.security.PlatformAuthorities;
+import com.alxarafe.erbas.adapter.http.ContractError;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -107,12 +108,12 @@ public class AuthenticationConfiguration {
                     response.setHeader("WWW-Authenticate", "Bearer");
                     response.setHeader("Cache-Control", "no-store");
                     response.setContentType("application/json");
-                    response.getWriter().write("{\"code\":\"unauthorized\"}");
+                    response.getWriter().write(ContractError.json("unauthorized"));
                 }).accessDeniedHandler((request, response, failure) -> {
                     response.setStatus(403);
                     response.setHeader("Cache-Control", "no-store");
                     response.setContentType("application/json");
-                    response.getWriter().write("{\"code\":\"forbidden\"}");
+                    response.getWriter().write(ContractError.json("forbidden"));
                 }))
                 .addFilterBefore(new BearerAuthenticationFilter(bearerAuthenticationManager, publicEndpoints),
                         AnonymousAuthenticationFilter.class)

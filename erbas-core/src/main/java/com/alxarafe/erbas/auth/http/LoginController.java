@@ -2,6 +2,8 @@ package com.alxarafe.erbas.auth.http;
 
 import java.util.Map;
 
+import com.alxarafe.erbas.adapter.http.ContractError;
+
 import com.alxarafe.erbas.auth.application.LoginUseCase;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -31,7 +33,7 @@ public class LoginController {
 
     @PostMapping(path = "/api/auth/login", consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Map<String, String>> login(@RequestBody String body) {
+    public ResponseEntity<?> login(@RequestBody String body) {
         JsonNode request;
         try {
             request = parser.readTree(body);
@@ -45,7 +47,7 @@ public class LoginController {
         var token = login.login(request.get("email").asString(), request.get("password").asString());
         if (token.isEmpty()) {
             return ResponseEntity.status(401).contentType(MediaType.APPLICATION_JSON)
-                    .header("WWW-Authenticate", "Bearer").body(Map.of("code", "invalid_credentials"));
+                    .header("WWW-Authenticate", "Bearer").body(ContractError.of("invalid_credentials"));
         }
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON)
                 .header("Cache-Control", "no-store").body(Map.of("accessToken", token.orElseThrow()));
@@ -55,8 +57,8 @@ public class LoginController {
         return value != null && value.isString() && !value.asString().isEmpty();
     }
 
-    static ResponseEntity<Map<String, String>> invalidRequest() {
+    static ResponseEntity<?> invalidRequest() {
         return ResponseEntity.badRequest().contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("code", "invalid_request"));
+                .body(ContractError.of("invalid_request"));
     }
 }

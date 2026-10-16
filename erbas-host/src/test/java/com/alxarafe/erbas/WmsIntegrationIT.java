@@ -109,7 +109,7 @@ class WmsIntegrationIT {
     @Test
     void v5UpgradesV4WithoutChangingCoreDataAndFreshHistoryHasAllMigrations() {
         assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank",
-                String.class)).containsExactly("1", "2", "3", "4", "5", "6");
+                String.class)).containsExactly("1", "2", "3", "4", "5", "6", "7");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE NOT success", Integer.class)).isZero();
         String schema = "wms_it_v4_upgrade";
         var builder = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema)
@@ -311,6 +311,6 @@ class WmsIntegrationIT {
     }
     private void assertError(HttpResponse<String> response, HttpStatus status, String code) {
         assertJson(response, status);
-        assertThat(json.readTree(response.body())).isEqualTo(json.valueToTree(Map.of(UomController.CODE_FIELD, code)));
+        assertThat(json.readTree(response.body())).isEqualTo(json.valueToTree(Map.of(UomController.CODE_FIELD, code, "errors", java.util.List.of(Map.of(UomController.CODE_FIELD, code)))));
     }
 }
