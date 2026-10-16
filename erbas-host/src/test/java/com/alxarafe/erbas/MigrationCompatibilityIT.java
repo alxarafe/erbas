@@ -6,17 +6,24 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 
 import com.alxarafe.erbas.auth.infrastructure.AuthenticationConfiguration;
 import com.alxarafe.erbas.modularity.ModuleStateService;
 import com.alxarafe.erbas.wms.WmsModule;
 import com.alxarafe.erbas.wms.http.UomController;
+import com.alxarafe.erbas.wms.http.ItemFamilyController;
+import com.alxarafe.erbas.wms.http.FamilyAssociationController;
+import com.alxarafe.erbas.wms.infrastructure.JdbcItemFamilyStore;
+import com.alxarafe.erbas.wms.infrastructure.JdbcFamilyAssociationStore;
 import com.alxarafe.erbas.wms.http.StorageAttributeController;
 import com.alxarafe.erbas.wms.infrastructure.JdbcStorageAttributeStore;
 import com.alxarafe.erbas.wms.infrastructure.JdbcUomStore;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.web.server.context.ConfigurableWebServerApplicationContext;
@@ -30,7 +37,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class MigrationCompatibilityIT {
     private static final String FRESH_SCHEMA = "host_fresh_boundary_it";
-    private static final String UPGRADE_SCHEMA = "host_v060_boundary_it";
+    private static final String UPGRADE_SCHEMA_PREFIX = "host_legacy_boundary_it_";
+    private static final String V070_LOCATION = "classpath:db/legacy-v070";
+    private static final UUID STORAGE_ID = UUID.fromString("abcdefab-1234-1234-1234-123456789012");
     private static final String LEGACY_LOCATION = "classpath:db/legacy-v060";
     private static final String HISTORY = "SELECT * FROM flyway_schema_history ORDER BY installed_rank";
     private static final String EMAIL = "preserved-v060@example.test";
@@ -50,9 +59,11 @@ class MigrationCompatibilityIT {
             var flyway = context.getBean(Flyway.class);
             assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
             assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank",
-                    String.class)).containsExactly("1", "2", "3", "4", "5", "6");
+                    String.class)).containsExactly("1", "2", "3", "4", "5", "6", "7");
             assertThat(jdbc.queryForObject("SELECT count(*) FROM " + JdbcUomStore.TABLE, Integer.class)).isZero();
             assertThat(jdbc.queryForObject("SELECT count(*) FROM " + JdbcStorageAttributeStore.TABLE, Integer.class)).isZero();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM " + JdbcItemFamilyStore.TABLE, Integer.class)).isZero();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM " + JdbcFamilyAssociationStore.TABLE, Integer.class)).isZero();
             assertThat(flyway.migrate().migrationsExecuted).isZero();
             assertThat(context.getBean(ModuleStateService.class).isEnabled(WmsModule.ID)).isTrue();
             assertThat(get(client, context, HEALTH_PATH, null).statusCode()).isEqualTo(HttpStatus.OK.value());
@@ -63,15 +74,17 @@ class MigrationCompatibilityIT {
         }
     }
 
-    @Test
-    void currentV1ThroughV5HistoryAndDataSurviveRealHostStartup() throws Exception {
-        var dataSource = dataSource(UPGRADE_SCHEMA);
+    @ParameterizedTest
+    @ValueSource(ints = {5, 6})
+    void historicalV1ThroughV5OrV6DataSurviveRealHostStartup(int priorVersion) throws Exception {
+        String schema = UPGRADE_SCHEMA_PREFIX + priorVersion;
+        var dataSource = dataSource(schema);
         var jdbc = new JdbcTemplate(dataSource);
-        var legacy = Flyway.configure().dataSource(dataSource).schemas(UPGRADE_SCHEMA).defaultSchema(UPGRADE_SCHEMA)
-                .locations(LEGACY_LOCATION).load();
+        var legacy = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema)
+                .locations(LEGACY_LOCATION, V070_LOCATION).target(Integer.toString(priorVersion)).load();
         try {
-            // These five SQL fixtures are byte-identical to the exact approved base.
-            assertThat(legacy.migrate().migrationsExecuted).isEqualTo(5);
+            // Published migration fixtures are immutable; only pending migrations may be appended.
+            assertThat(legacy.migrate().migrationsExecuted).isEqualTo(priorVersion);
             var history = jdbc.queryForList(HISTORY);
             var hash = new AuthenticationConfiguration().passwordEncoder().encode(PASSWORD);
             Long userId = jdbc.queryForObject("INSERT INTO auth_user (email, password_hash, enabled, admin) VALUES (?, ?, true, true) RETURNING id",
@@ -82,19 +95,25 @@ class MigrationCompatibilityIT {
             jdbc.update("INSERT INTO module_states (module_id, enabled) VALUES (?, false)", WmsModule.ID);
             jdbc.update("INSERT INTO " + JdbcUomStore.TABLE + " (id, code, description) VALUES (?, ?, ?)",
                     UOM_ID, UOM_CODE, UOM_DESCRIPTION);
+            if (priorVersion == 6) jdbc.update("INSERT INTO " + JdbcStorageAttributeStore.TABLE + " (id, code, name) VALUES (?, ?, ?)",
+                    STORAGE_ID, "OLD_STORAGE", "\u00a0Preserved storage 📦\u2003");
+            var oldAttributes = priorVersion == 6 ? jdbc.queryForList("SELECT * FROM " + JdbcStorageAttributeStore.TABLE) : List.<Map<String, Object>>of();
+            Long storageOid = priorVersion == 6 ? jdbc.queryForObject("SELECT ?::regclass::oid", Long.class, JdbcStorageAttributeStore.TABLE) : null;
             var oid = jdbc.queryForObject("SELECT ?::regclass::oid", Long.class, JdbcUomStore.TABLE);
             var users = jdbc.queryForList("SELECT * FROM auth_user");
             var tokens = jdbc.queryForList("SELECT * FROM auth_access_token");
             var marker = jdbc.queryForList("SELECT * FROM erbas_persistence_marker");
-            try (var context = start(UPGRADE_SCHEMA); var client = client()) {
+            try (var context = start(schema); var client = client()) {
                 var flyway = context.getBean(Flyway.class);
                 assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
                 assertThat(flyway.migrate().migrationsExecuted).isZero();
-                assertThat(jdbc.queryForList("SELECT * FROM flyway_schema_history WHERE version IS NULL OR version::int <= 5 ORDER BY installed_rank"))
+                assertThat(jdbc.queryForList("SELECT * FROM flyway_schema_history WHERE version IS NULL OR version::int <= ? ORDER BY installed_rank", priorVersion))
                         .isEqualTo(history);
                 assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE version = '6' AND success", Integer.class))
                         .isEqualTo(1);
-                assertThat(jdbc.queryForObject("SELECT count(*) FROM " + JdbcStorageAttributeStore.TABLE, Integer.class)).isZero();
+                assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE version = '7' AND success", Integer.class)).isEqualTo(1);
+                assertThat(jdbc.queryForList("SELECT * FROM " + JdbcStorageAttributeStore.TABLE)).isEqualTo(oldAttributes);
+                if (storageOid != null) assertThat(jdbc.queryForObject("SELECT ?::regclass::oid", Long.class, JdbcStorageAttributeStore.TABLE)).isEqualTo(storageOid);
                 assertThat(jdbc.queryForObject("SELECT ?::regclass::oid", Long.class, JdbcUomStore.TABLE)).isEqualTo(oid);
                 assertThat(jdbc.queryForList("SELECT * FROM auth_user")).isEqualTo(users);
                 assertThat(jdbc.queryForList("SELECT * FROM auth_access_token")).isEqualTo(tokens);
@@ -127,10 +146,21 @@ class MigrationCompatibilityIT {
                 var page = get(client, context, StorageAttributeController.STORAGE_ATTRIBUTES_PATH, token);
                 assertThat(page.statusCode()).isEqualTo(HttpStatus.OK.value());
                 assertThat(json.readTree(page.body()).get("items").get(0)).isEqualTo(json.readTree(attribute.body()));
+                var createFamily = HttpRequest.newBuilder(uri(context, ItemFamilyController.ITEM_FAMILIES_PATH)).timeout(HTTP_TIMEOUT)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(Map.of(ItemFamilyController.CODE_FIELD, "FAMILY", ItemFamilyController.NAME_FIELD, "Family")))).build();
+                var family = client.send(createFamily, HttpResponse.BodyHandlers.ofString());
+                assertThat(family.statusCode()).isEqualTo(HttpStatus.CREATED.value());
+                String relationPath = ItemFamilyController.ITEM_FAMILIES_PATH + "/" + json.readTree(family.body()).get("id").asString() + "/" + FamilyAssociationController.ASSOCIATION_SEGMENT;
+                var createRelation = HttpRequest.newBuilder(uri(context, relationPath)).timeout(HTTP_TIMEOUT)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(Map.of(FamilyAssociationController.ATTRIBUTE_ID, json.readTree(attribute.body()).get("id").asString())))).build();
+                assertThat(client.send(createRelation, HttpResponse.BodyHandlers.ofString()).statusCode()).isEqualTo(HttpStatus.CREATED.value());
+                assertThat(json.readTree(get(client, context, relationPath, token).body()).get("items").get(0)).isEqualTo(json.readTree(attribute.body()));
                 assertThat(flyway.migrate().migrationsExecuted).isZero();
             }
         } finally {
-            jdbc.execute("DROP SCHEMA IF EXISTS " + UPGRADE_SCHEMA + " CASCADE");
+            jdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
         }
     }
 

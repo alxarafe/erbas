@@ -209,7 +209,7 @@ class ModuleControllerTests {
     }
 
     private String enabled(boolean value) { return json.writeValueAsString(Map.of(ModuleController.ENABLED_FIELD, value)); }
-    private String error(String code) { return json.writeValueAsString(Map.of("code", code)); }
+    private String error(String code) { return json.writeValueAsString(Map.of("code", code, "errors", java.util.List.of(Map.of("code", code)))); }
     private Map<String, Object> representation(String id, boolean enabled) {
         return Map.of("id", id, "moduleApiVersion", ModuleApi.CURRENT_VERSION, "dependencies",
                 id.equals(CHILD) ? List.of(FIRST, SECOND) : List.of(), "enabled", enabled);

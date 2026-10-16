@@ -209,7 +209,7 @@ class AuthenticationIntegrationIT {
         mvc.perform(post("/api/auth/login").contentType("Application/JSON").content("{"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(content().json("{\"code\":\"invalid_request\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"invalid_request\",\"errors\":[{\"code\":\"invalid_request\"}]}", JsonCompareMode.STRICT));
     }
 
     private String loginToken(String email, String password) throws Exception {
@@ -231,7 +231,7 @@ class AuthenticationIntegrationIT {
                         .content(json.writeValueAsString(Map.of("email", email, "password", password))))
                 .andExpect(status().isUnauthorized()).andExpect(header().string("WWW-Authenticate", "Bearer"))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(content().json("{\"code\":\"invalid_credentials\"}", JsonCompareMode.STRICT))
+                .andExpect(content().json("{\"code\":\"invalid_credentials\",\"errors\":[{\"code\":\"invalid_credentials\"}]}", JsonCompareMode.STRICT))
                 .andReturn().getResponse().getContentAsString();
     }
 

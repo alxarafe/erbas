@@ -2,6 +2,8 @@ package com.alxarafe.erbas.modularity.http;
 
 import java.nio.charset.StandardCharsets;
 
+import com.alxarafe.erbas.adapter.http.ContractError;
+
 import com.alxarafe.erbas.modularity.ModuleDisabledException;
 import com.alxarafe.erbas.modularity.ModuleStateService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,7 +19,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 /** HTTP boundary only; Spring Security evaluates authentication/authorization first. */
 public final class ModuleEndpointInterceptor implements HandlerInterceptor {
     public static final String DISABLED_CODE = "module_disabled";
-    private static final String DISABLED_JSON = "{\"code\":\"" + DISABLED_CODE + "\"}";
+    private static final String DISABLED_JSON = ContractError.json(DISABLED_CODE);
     private static final String CHECKED_MODULE = ModuleEndpointInterceptor.class.getName();
     private final ModuleStateService states;
 

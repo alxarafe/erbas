@@ -50,7 +50,7 @@ class LoginControllerTests {
         mvc.perform(post("/api/auth/login").contentType("Application/JSON").content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(content().json("{\"code\":\"invalid_request\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"invalid_request\",\"errors\":[{\"code\":\"invalid_request\"}]}", JsonCompareMode.STRICT));
         verifyNoInteractions(login, store);
     }
 
@@ -73,7 +73,7 @@ class LoginControllerTests {
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(content().json("{\"code\":\"invalid_request\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"invalid_request\",\"errors\":[{\"code\":\"invalid_request\"}]}", JsonCompareMode.STRICT));
     }
 
     @Test
@@ -84,7 +84,7 @@ class LoginControllerTests {
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().string("WWW-Authenticate", "Bearer"))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(content().json("{\"code\":\"invalid_credentials\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"code\":\"invalid_credentials\",\"errors\":[{\"code\":\"invalid_credentials\"}]}", JsonCompareMode.STRICT));
         verify(login).login("not-an-email", " \t ");
     }
 

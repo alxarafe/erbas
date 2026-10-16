@@ -1,5 +1,7 @@
 package com.alxarafe.erbas.modularity.http;
 
+import com.alxarafe.erbas.adapter.http.ContractError;
+
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
@@ -82,7 +84,7 @@ public class ModuleController {
                 states.isEnabled(descriptor.id()));
     }
 
-    static ResponseEntity<Object> error(HttpStatus status, String code) { return json(status, Map.of("code", code)); }
+    static ResponseEntity<Object> error(HttpStatus status, String code) { return json(status, ContractError.of(code)); }
 
     private static ResponseEntity<Object> json(HttpStatus status, Object body) {
         return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON)
