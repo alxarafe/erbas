@@ -12,6 +12,8 @@ import com.alxarafe.erbas.auth.infrastructure.AuthenticationConfiguration;
 import com.alxarafe.erbas.modularity.ModuleStateService;
 import com.alxarafe.erbas.wms.WmsModule;
 import com.alxarafe.erbas.wms.http.UomController;
+import com.alxarafe.erbas.wms.http.StorageAttributeController;
+import com.alxarafe.erbas.wms.infrastructure.JdbcStorageAttributeStore;
 import com.alxarafe.erbas.wms.infrastructure.JdbcUomStore;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
@@ -48,8 +50,9 @@ class MigrationCompatibilityIT {
             var flyway = context.getBean(Flyway.class);
             assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
             assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank",
-                    String.class)).containsExactly("1", "2", "3", "4", "5");
+                    String.class)).containsExactly("1", "2", "3", "4", "5", "6");
             assertThat(jdbc.queryForObject("SELECT count(*) FROM " + JdbcUomStore.TABLE, Integer.class)).isZero();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM " + JdbcStorageAttributeStore.TABLE, Integer.class)).isZero();
             assertThat(flyway.migrate().migrationsExecuted).isZero();
             assertThat(context.getBean(ModuleStateService.class).isEnabled(WmsModule.ID)).isTrue();
             assertThat(get(client, context, HEALTH_PATH, null).statusCode()).isEqualTo(HttpStatus.OK.value());
@@ -87,7 +90,11 @@ class MigrationCompatibilityIT {
                 var flyway = context.getBean(Flyway.class);
                 assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
                 assertThat(flyway.migrate().migrationsExecuted).isZero();
-                assertThat(jdbc.queryForList(HISTORY)).isEqualTo(history);
+                assertThat(jdbc.queryForList("SELECT * FROM flyway_schema_history WHERE version IS NULL OR version::int <= 5 ORDER BY installed_rank"))
+                        .isEqualTo(history);
+                assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE version = '6' AND success", Integer.class))
+                        .isEqualTo(1);
+                assertThat(jdbc.queryForObject("SELECT count(*) FROM " + JdbcStorageAttributeStore.TABLE, Integer.class)).isZero();
                 assertThat(jdbc.queryForObject("SELECT ?::regclass::oid", Long.class, JdbcUomStore.TABLE)).isEqualTo(oid);
                 assertThat(jdbc.queryForList("SELECT * FROM auth_user")).isEqualTo(users);
                 assertThat(jdbc.queryForList("SELECT * FROM auth_access_token")).isEqualTo(tokens);
@@ -110,6 +117,17 @@ class MigrationCompatibilityIT {
                 assertThat(unit.get("id").asText()).isEqualTo(UOM_ID.toString());
                 assertThat(unit.get("code").asText()).isEqualTo(UOM_CODE);
                 assertThat(unit.get("description").asText()).isEqualTo(UOM_DESCRIPTION);
+                var createAttribute = HttpRequest.newBuilder(uri(context, StorageAttributeController.STORAGE_ATTRIBUTES_PATH)).timeout(HTTP_TIMEOUT)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(Map.of(
+                                StorageAttributeController.CODE_FIELD, "IS_FOOD", StorageAttributeController.NAME_FIELD, " Food ")))).build();
+                var attribute = client.send(createAttribute, HttpResponse.BodyHandlers.ofString());
+                assertThat(attribute.statusCode()).isEqualTo(HttpStatus.CREATED.value());
+                var page = get(client, context, StorageAttributeController.STORAGE_ATTRIBUTES_PATH, token);
+                assertThat(page.statusCode()).isEqualTo(HttpStatus.OK.value());
+                assertThat(json.readTree(page.body()).get("items").get(0)).isEqualTo(json.readTree(attribute.body()));
+                assertThat(flyway.migrate().migrationsExecuted).isZero();
             }
         } finally {
             jdbc.execute("DROP SCHEMA IF EXISTS " + UPGRADE_SCHEMA + " CASCADE");
