@@ -202,6 +202,38 @@ and must not be treated as interchangeable.
 Report commands, results, relevant warnings, environment limitations, and
 cleanup evidence. Do not claim a check that was not actually executed.
 
+### Efficient validation execution
+
+During implementation, prefer the narrowest applicable validation that gives
+useful feedback — focused unit tests, focused Java integration tests, or the
+scoped portions of the suite — before running broader validation.
+
+Do not run the full `./bin/check` — or another long-running repository-wide,
+integration, image, deployment, or conformance command — inside an AI-agent
+session merely to wait for it to finish when the developer or CI can run it
+directly. Repeatedly polling such a process is specifically discouraged: each
+poll may cost another model turn that reprocesses the existing conversation and
+repository context even though the external process itself needs no reasoning,
+consuming effort without adding engineering value.
+
+Whether a command is "long-running" depends on the repository and the task; no
+fixed duration threshold applies. When the complete `./bin/check` is required and
+is expected to take materially longer than the focused checks, the agent normally
+provides the exact command for the developer or CI to execute. Because
+`./bin/check` remains the sole complete backend validation entry point and shared
+Bruno conformance is mandatory, the agent stops and waits for the real result
+before completing or committing an affected task, continues only once it is
+provided, and never claims the check passed unless its result is actually known.
+
+If a long-running command genuinely must be executed by the agent, avoid repeated
+polling, wait as efficiently as the available tooling permits, and do not
+repeatedly reread unchanged files or rerun unchanged validations.
+
+This changes execution responsibility, not validation authority. The mandatory
+Java integration, PostgreSQL, image, migration, health, Bruno and cleanup
+requirements above are unchanged, and a failed or missing required validation
+still blocks task completion or commit exactly as before.
+
 ## Safe repository changes
 
 Preserve unrelated user changes. Inspect the working tree before editing. Use
