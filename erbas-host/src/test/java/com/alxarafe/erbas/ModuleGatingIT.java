@@ -57,6 +57,7 @@ class ModuleGatingIT {
     private static final String UNAVAILABLE_ID = "module-gating-test-unavailable";
     private static final String EMAIL = "module-gating-admin@example.test";
     private static final String PASSWORD = "module-gating-fixture-password";
+    private static final String ABSENT_API_PATH = "/api/ai/assistant/invocations";
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
     @Value("${local.server.port}") private int port;
     @Autowired private ModuleStateService states;
@@ -148,6 +149,16 @@ class ModuleGatingIT {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)))
                 .hasRootCauseInstanceOf(IllegalArgumentException.class);
         assertThat(get(UNAVAILABLE_ENDPOINT, null).statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+    }
+
+    @Test
+    void absentApiRouteUsesNotFoundWithoutRejectingAValidBearer() throws Exception {
+        var authenticated = get(ABSENT_API_PATH, token);
+        assertThat(authenticated.statusCode()).isEqualTo(HttpStatus.NOT_FOUND.value());
+        assertThat(authenticated.headers().firstValue(HttpHeaders.WWW_AUTHENTICATE)).isEmpty();
+        var anonymous = get(ABSENT_API_PATH, null);
+        assertThat(anonymous.statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        assertThat(anonymous.headers().firstValue(HttpHeaders.WWW_AUTHENTICATE)).contains("Bearer");
     }
 
     private void assertDisabled(HttpResponse<String> response) {
