@@ -3,6 +3,8 @@ package com.alxarafe.erbas.auth.infrastructure;
 import com.alxarafe.erbas.security.PlatformAuthorities;
 import com.alxarafe.erbas.adapter.http.ContractError;
 
+import jakarta.servlet.DispatcherType;
+
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Map;
@@ -94,7 +96,8 @@ public class AuthenticationConfiguration {
                 .requestCache(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> {
-                    authorize.requestMatchers(publicEndpoints).permitAll()
+                    authorize.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        .requestMatchers(publicEndpoints).permitAll()
                         .requestMatchers(paths.matcher("/api/users"), paths.matcher("/api/users/**"))
                             .hasAuthority(PlatformAuthorities.ADMINISTRATOR)
                         .requestMatchers(paths.matcher(ModuleController.MODULES_PATH),
