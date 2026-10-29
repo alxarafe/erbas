@@ -1,0 +1,53 @@
+[
+  {
+    "id": "wms.uoms.list",
+    "module": "erbas.wms",
+    "version": "1.0.0",
+    "name": "List units of measure",
+    "description": "GET /api/wms/uoms with optional offset and limit; returns the existing paged catalogue.",
+    "effect": "read",
+    "inputSchema": {
+      "$ref": "#/components/schemas/CapabilityListInput"
+    },
+    "outputSchema": {
+      "$ref": "#/components/schemas/WmsUomCollection"
+    },
+    "requiredPermissions": [
+      "wms.uoms.read"
+    ]
+  },
+  {
+    "id": "wms.storage-attributes.list",
+    "module": "erbas.wms",
+    "version": "1.0.0",
+    "name": "List storage attributes",
+    "description": "GET /api/wms/storage-attributes with optional offset and limit; returns the existing paged catalogue.",
+    "effect": "read",
+    "inputSchema": {
+      "$ref": "#/components/schemas/CapabilityListInput"
+    },
+    "outputSchema": {
+      "$ref": "#/components/schemas/WmsStorageAttributeCollection"
+    },
+    "requiredPermissions": [
+      "wms.storage-attributes.read"
+    ]
+  },
+  {
+    "id": "wms.item-families.list",
+    "module": "erbas.wms",
+    "version": "1.0.0",
+    "name": "List item families",
+    "description": "GET /api/wms/item-families with optional offset and limit; returns the existing paged catalogue.",
+    "effect": "read",
+    "inputSchema": {
+      "$ref": "#/components/schemas/CapabilityListInput"
+    },
+    "outputSchema": {
+      "$ref": "#/components/schemas/WmsItemFamilyCollection"
+    },
+    "requiredPermissions": [
+      "wms.item-families.read"
+    ]
+  }
+]

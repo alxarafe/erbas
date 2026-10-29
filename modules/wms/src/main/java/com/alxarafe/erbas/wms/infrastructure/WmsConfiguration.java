@@ -1,6 +1,7 @@
 package com.alxarafe.erbas.wms.infrastructure;
 
 import com.alxarafe.erbas.wms.WmsModule;
+import com.alxarafe.erbas.wms.WmsCapabilities;
 import com.alxarafe.erbas.wms.application.FamilyAssociations;
 import com.alxarafe.erbas.wms.application.ItemFamilyCatalogue;
 import com.alxarafe.erbas.wms.http.ItemFamilyController;
@@ -24,6 +25,7 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 @Import({UomController.class, StorageAttributeController.class, ItemFamilyController.class, FamilyAssociationController.class, CatalogueExceptionHandler.class})
 public class WmsConfiguration {
     @Bean public WmsModule wmsModule() { return new WmsModule(); }
+    @Bean public WmsCapabilities wmsCapabilities() { return new WmsCapabilities(); }
     @Bean public JdbcUomStore uomStore(JdbcTemplate jdbc) { return new JdbcUomStore(jdbc); }
     @Bean public UomCatalogue uomCatalogue(JdbcUomStore store) { return new UomCatalogue(store); }
 

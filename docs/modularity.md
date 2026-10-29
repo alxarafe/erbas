@@ -148,7 +148,7 @@ that gate; INITIALIZED never substitutes for permission to execute functional wo
 
 ## CORE module administration
 
-Java adopts published ERBAS Contract `v0.8.0` through administrator-only
+Java adopts published ERBAS Contract `v0.9.0` through administrator-only
 `GET /api/modules` and `PATCH /api/modules/{id}`. Spring Security applies existing
 bearer authentication and the central `ADMIN` authority before MVC body/query
 validation, descriptor lookup or state changes. Missing/invalid authentication

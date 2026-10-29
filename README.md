@@ -28,8 +28,8 @@ provisioned by default. Registration, logout and refresh are outside this scope.
 
 USERS-001 provides current identity and basic administrator-only user creation,
 listing and enabled/admin updates, with atomic last-admin protection. COLLECTIONS-001
-adds offset/limit pagination and stable ordering to the user list. Roles,
-permissions, email changes and password management are outside this scope.
+adds offset/limit pagination and stable ordering to the user list. Role/permission
+assignment, email changes and password management are outside this scope.
 See [USERS-001 verification](docs/verification/users-001.md) and
 [COLLECTIONS-001 verification](docs/verification/collections-001.md).
 
@@ -40,6 +40,10 @@ CORE/platform, WMS and the executable host, which explicitly composes both.
 See the [physical architecture decision](docs/decisions/0002-physical-module-boundaries.md).
 Canonical development modules are explicitly enabled only in disposable
 conformance composition. See [modularity](docs/modularity.md#core-module-administration).
+
+CORE-CAP-001 adds effective capability discovery: WMS declares its three existing
+READ catalogue operations; CORE filters descriptors by current user and module
+state. Discovery never executes capabilities. See [capabilities](docs/capabilities.md).
 
 The same client provides authenticated profiles and basic administrator user
 management with pagination against either backend. Backend authorization remains
@@ -73,7 +77,7 @@ No host Java, Maven or Bruno is needed. See [usage](docs/usage.md).
 
 ## Status and documentation
 
-Java implements the published ERBAS Contract `v0.8.0`, recorded in
+Java implements the published ERBAS Contract `v0.9.0`, recorded in
 [contract.revision](contract.revision). The supplied checkout must be clean and
 its release tag and HEAD must resolve to the expected immutable commit.
 `./bin/check` is authoritative locally and in GitHub Actions, where shared Bruno
@@ -81,7 +85,8 @@ conformance against the same published release is mandatory. The CI badge
 reports workflow results; [AUTH-003](docs/verification/auth-003.md) and
 [COLLECTIONS-001](docs/verification/collections-001.md) retain historical local
 verification evidence against earlier revisions.
-Current local adoption evidence is in [WMS-003J](docs/verification/wms-003-java.md).
+Current discovery/adoption validation is described in [capabilities](docs/capabilities.md).
+[WMS-003J](docs/verification/wms-003-java.md) retains the earlier v0.8.0 evidence.
 
 The .NET badge reports the .NET workflow, including its shared Bruno checks;
 it does not establish Java conformance. Angular client CI verifies its own
