@@ -21,11 +21,14 @@ class ArchitectureTests {
     private static final Path ROOT = Path.of(System.getProperty("erbas.project.root"));
     private static final Path CORE = ROOT.resolve("erbas-core");
     private static final Path WMS = ROOT.resolve("modules/wms");
+    private static final Path AI = ROOT.resolve("modules/ai");
     private static final Path HOST = ROOT.resolve("erbas-host");
     private static final String JAVA_SOURCES = "src/main/java";
     private static final String RESOURCES = "src/main/resources";
     private static final String WMS_PACKAGE = "com.alxarafe.erbas.wms";
     private static final String WMS_COMPOSITION = WMS_PACKAGE + ".infrastructure.WmsConfiguration";
+    private static final String AI_PACKAGE = "com.alxarafe.erbas.ai";
+    private static final String AI_COMPOSITION = AI_PACKAGE + ".infrastructure.AiConfiguration";
     private static final String BOOT_PLUGIN = "spring-boot-maven-plugin";
     private static final String LEGACY_FIXTURES = "src/test/resources/db/legacy-v060";
     private static final Set<String> CORE_MIGRATIONS = Set.of("V1__create_persistence_marker.sql",
@@ -37,31 +40,47 @@ class ArchitectureTests {
 
     @Test
     void mavenDependencyDirectionIsHostToCoreAndWmsAndWmsToCore() throws Exception {
-        assertThat(dependencies(ROOT)).doesNotContain("erbas-core", "erbas-wms", "erbas-host");
-        assertThat(dependencies(CORE)).doesNotContain("erbas-wms", "erbas-host");
-        assertThat(dependencies(WMS)).contains("erbas-core").doesNotContain("erbas-host");
-        assertThat(dependencies(HOST)).contains("erbas-core", "erbas-wms");
+        assertThat(dependencies(ROOT)).doesNotContain("erbas-core", "erbas-wms", "erbas-ai", "erbas-host");
+        assertThat(dependencies(CORE)).doesNotContain("erbas-wms", "erbas-ai", "erbas-host");
+        assertThat(dependencies(WMS)).contains("erbas-core").doesNotContain("erbas-ai", "erbas-host");
+        assertThat(dependencies(AI)).containsExactly("erbas-core");
+        assertThat(dependencies(HOST)).contains("erbas-core", "erbas-wms", "erbas-ai");
     }
 
     @Test
     void coreProductionSourcesAndResourcesHaveNoWmsBusinessKnowledge() throws Exception {
         for (var file : files(CORE.resolve("src/main"))) {
             assertThat(Files.readString(file)).as(file.toString()).doesNotContain(WMS_PACKAGE,
-                    "WmsModule", "/api/wms", "wms_uoms", "ItemFamily", "wms_item_families", "wms_item_family", "wms_storage_attribute");
+                    "WmsModule", "/api/wms", "wms_uoms", "ItemFamily", "wms_item_families", "wms_item_family", "wms_storage_attribute",
+                    AI_PACKAGE, "/api/ai", "AiModule");
         }
     }
 
     @Test
     void hostExplicitlyImportsOnlyTheWmsCompositionBoundary() throws Exception {
         var source = Files.readString(HOST.resolve(JAVA_SOURCES + "/com/alxarafe/erbas/ErbasApplication.java"));
-        assertThat(source).contains("@Import({CoreConfiguration.class, WmsConfiguration.class})")
+        assertThat(source).contains("@Import({CoreConfiguration.class, WmsConfiguration.class, AiConfiguration.class})")
                 .doesNotContain("@SpringBootApplication", "@ComponentScan");
         for (var file : files(HOST.resolve(JAVA_SOURCES))) {
             // Include qualified references as well as imports.
             var references = Pattern.compile(Pattern.quote(WMS_PACKAGE) + "(?:\\.[\\w$]+)+")
                     .matcher(Files.readString(file));
             while (references.find()) assertThat(references.group()).isEqualTo(WMS_COMPOSITION);
+            var aiReferences = Pattern.compile(Pattern.quote(AI_PACKAGE) + "(?:\\.[\\w$]+)+").matcher(Files.readString(file));
+            while (aiReferences.find()) assertThat(aiReferences.group()).isEqualTo(AI_COMPOSITION);
         }
+    }
+
+    @Test
+    void aiUsesCoreGovernanceWithoutBusinessInternalsOrExternalTools() throws Exception {
+        for (var file : files(AI.resolve("src/main"))) {
+            assertThat(Files.readString(file)).as(file.toString()).doesNotContain(WMS_PACKAGE,
+                    "UomCatalogue", "StorageAttributeCatalogue", "ItemFamilyCatalogue", "JdbcTemplate",
+                    "RestTemplate", "WebClient", "java.net.", "java.sql.", "org.springframework.jdbc",
+                    "org.springframework.ai", "com.openai", "io.modelcontextprotocol");
+        }
+        var orchestration = Files.readString(AI.resolve(JAVA_SOURCES + "/com/alxarafe/erbas/ai/AssistantInvocation.java"));
+        assertThat(orchestration).contains("capabilities.invoke(", "discovery.effective(");
     }
 
     @Test
@@ -86,7 +105,7 @@ class ArchitectureTests {
         assertThat(Files.readString(HOST.resolve(RESOURCES + "/application.properties")))
                 .contains("spring.flyway.locations=classpath:db/core,classpath:db/wms")
                 .doesNotContain("spring.flyway.validate-on-migrate=false");
-        for (var library : List.of(ROOT, CORE, WMS)) {
+        for (var library : List.of(ROOT, CORE, WMS, AI)) {
             assertThat(Files.readString(library.resolve("pom.xml"))).doesNotContain(BOOT_PLUGIN);
         }
         assertThat(Files.readString(HOST.resolve("pom.xml"))).contains(BOOT_PLUGIN);

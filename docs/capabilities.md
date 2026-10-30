@@ -1,6 +1,8 @@
 # Effective capability discovery and READ invocation (CORE-CAP-001/002)
 
-Java formally adopts published immutable **erbas-contract v0.10.0**:
+Java introduced CORE-CAP-002 against published immutable **erbas-contract v0.10.0**.
+Its behavior remains unchanged under the current [AI-001/v0.11.1 adoption](ai.md).
+The original CORE-CAP-002 publication identity is:
 
 - Annotated tag object: `a55a8d25beef5c24bc9cdce956a2eb2b14f41fb3`.
 - Target commit: `1b7b182374ad432637dd41f46b94b4004470eba0`.
@@ -90,7 +92,7 @@ migration to a different runtime is involved.
 Run the normal complete check with an explicit clean published checkout:
 
 ```bash
-ERBAS_CONTRACT_DIR=/path/to/clean-v0.10.0-checkout ./bin/check
+ERBAS_CONTRACT_DIR=/path/to/clean-v0.11.1-checkout ./bin/check
 ```
 
 The same immutable release is selected by CI. Native tests cover descriptor
@@ -99,7 +101,7 @@ all-permission filtering, stable ordering, missing/disabled modules and exact WM
 declarations. Real HTTP/PostgreSQL integration covers closed descriptors,
 pagination and authentication precedence, ordinary users, current demotion and
 real module PATCH disable/restore. Full shared conformance preserves v0.8.0 and
-adds CORE-CAP-001/002. The release inventory is 560 requests/2467 named checks; these
+adds CORE-CAP-001/002. The original v0.10.0 inventory is 560 requests/2467 named checks; these
 are distinct from Java native/integration test counts. Normal cleanup, migration,
 architecture and sensitive-log checks remain mandatory.
 
@@ -165,7 +167,8 @@ API, persistence table or migration is added.
 
 Execution is READ-only. WRITE invocation, Assistant, AI providers, tool selection,
 READ primitives, persisted functional permissions, tenant, DataScope, Resource
-Runtime, navigation and Assets remain outside this implementation.
+Runtime, navigation and Assets remain outside this CORE implementation. The
+separately composed [AI module](ai.md) now consumes this READ execution service.
 
 ## CORE-CAP-002 local verification
 

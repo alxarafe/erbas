@@ -17,21 +17,23 @@ ModuleSource(s) -> ModuleRegistry -> ModuleGraph -> ModuleRuntime
 ## Physical Maven ownership
 
 The root `pom.xml` is an aggregator and dependency-management parent. It does not
-produce an executable application. Three artifacts compose the one process:
+produce an executable application. Four artifacts compose the one process:
 
 | Source root | Artifact | Responsibility | Internal dependencies |
 | --- | --- | --- | --- |
 | `erbas-core/` | `erbas-core` | Non-disableable platform: Health, HTTP/i18n, authentication, users, collections, module contracts/runtime/gating and CORE persistence | None |
 | `modules/wms/` | `erbas-wms` | WMS UoM, StorageAttribute, ItemFamily and association domain/application, HTTP/JDBC adapters, Spring composition and migration resources | CORE |
-| `erbas-host/` | `erbas-host` | Executable Spring Boot composition root and runtime configuration | CORE and WMS |
+| `modules/ai/` | `erbas-ai` | AI-001 provider-neutral READ orchestration through CORE, permission/module gates, HTTP, audit and AI resources | CORE |
+| `erbas-host/` | `erbas-host` | Executable Spring Boot composition root and runtime configuration | CORE, WMS and AI |
 
-Java packages remain stable. `ErbasApplication` imports `CoreConfiguration` and
-`WmsConfiguration` explicitly; it does not scan the parent package to discover
+Java packages remain stable. `ErbasApplication` imports `CoreConfiguration`,
+`WmsConfiguration` and `AiConfiguration` explicitly; it does not scan the parent package to discover
 functional modules. CORE scans only its owned platform packages. WMS explicitly
 imports its own HTTP adapters and registers its services, descriptor and Spring
 Security customizer. Both authentication and that customizer use the generic
 `PlatformAuthorities.ADMINISTRATOR` contract, with the same existing authority.
-No WMS domain or persistence classes are imported by the production host.
+No WMS domain or persistence classes are imported by the production host or AI.
+AI discovers effective READ tools and executes only through CORE-CAP-002; see [AI](ai.md).
 
 CORE builds and tests without WMS. WMS domain/application remain free of Spring,
 JDBC, Flyway, HTTP adapters and host classes. Host tests cover the composed
@@ -148,7 +150,7 @@ that gate; INITIALIZED never substitutes for permission to execute functional wo
 
 ## CORE module administration
 
-Java adopts published ERBAS Contract `v0.10.0` with administrator-only
+Java adopts published ERBAS Contract `v0.11.1` with administrator-only
 `GET /api/modules` and `PATCH /api/modules/{id}`. Spring Security applies existing
 bearer authentication and the central `ADMIN` authority before MVC body/query
 validation, descriptor lookup or state changes. Missing/invalid authentication
@@ -186,7 +188,7 @@ All specified responses are JSON with `Cache-Control: no-store`; only 401 carrie
 `validation` profile and `erbas.modules.conformance.enabled=true` are both set.
 The environment binding is `ERBAS_MODULES_CONFORMANCE_ENABLED`, default false.
 `docker/compose.validation.yaml` enables it explicitly; development/production
-composition does not register it. Normal startup registers WMS, without these
+composition does not register it. Normal startup registers WMS and AI, without these
 conformance descriptors.
 
 The source contributes exactly `erbas.dev.math` (no dependencies) and
@@ -235,9 +237,10 @@ or bypasses dependency validation.
 CORE remains outside this gate: Health, authentication/login, user administration,
 the runtime and future recovery/administration infrastructure are not functional
 modules. All available modules still initialize technically even when disabled.
-Future scheduled jobs, event consumers, AI capabilities and other externally
+AI-001 already uses `ModuleStateService.requireEnabled` after its permission
+gate and before reading its body. Future scheduled jobs, event consumers and other externally
 triggered internal actions must use the same `ModuleStateService.requireEnabled`
-authority at their entry boundary; no such execution mechanisms are implemented.
+authority at their entry boundary; those further mechanisms are not implemented.
 Future external modules receive the same HTTP semantics through the public adapters.
 
 ## Future lifecycle, not implemented

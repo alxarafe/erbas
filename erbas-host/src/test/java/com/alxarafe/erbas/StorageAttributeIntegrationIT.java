@@ -77,7 +77,8 @@ class StorageAttributeIntegrationIT {
     @BeforeAll
     void normalProductionCompositionAndRealBearers() throws Exception {
         assertThat(registry.modules().stream().map(ErbasModule::descriptor))
-                .containsExactly(new ModuleDescriptor(WmsModule.ID, ModuleApi.CURRENT_VERSION, List.of()));
+                .containsExactly(new ModuleDescriptor(com.alxarafe.erbas.ai.AiModule.ID, ModuleApi.CURRENT_VERSION, List.of()),
+                        new ModuleDescriptor(WmsModule.ID, ModuleApi.CURRENT_VERSION, List.of()));
         assertThat(runtime.modules()).containsExactlyElementsOf(registry.modules());
         assertThat(states.isEnabled(WmsModule.ID)).isTrue();
         adminId = accounts.createUser(ADMIN_EMAIL, encoder.encode(PASSWORD), true, true);

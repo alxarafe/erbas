@@ -2,6 +2,7 @@
 
 | Document | Purpose |
 | --- | --- |
+| [AI assistant](ai.md) | AI-001 module, provider-neutral READ orchestration through CORE, deterministic validation adapter, audit and published v0.11.1 adoption |
 | [Capabilities](capabilities.md) | CORE-CAP-001 discovery, CORE-CAP-002 READ invocation, provider handlers, trusted context, audit and published v0.10.0 adoption |
 | [CLEANUP-001 verification](verification/cleanup-001.md) | Empty normal composition, canonical validation modules and regression evidence |
 | [WMS-003J verification](verification/wms-003-java.md) | Item Families, atomic N:M associations and v0.8.0 error-envelope adoption |
@@ -22,11 +23,11 @@
 | [AUTH-003 persistence verification](verification/auth-003-persistence.md) | Historical task 1 schema, JDBC decisions and isolated tests |
 | [AUTH-003 login verification](verification/auth-003-login.md) | Historical task 2 login and Spring Security verification |
 | [Working agreement](../AGENTS.md) | Persistent repository rules |
-| [Contract revision](../contract.revision) | Implemented published release v0.10.0 |
+| [Contract revision](../contract.revision) | Implemented published release v0.11.1 |
 
 Workflows run in their responsible repositories. Their badges can be displayed
 elsewhere without duplicating tests. Workflow status, the declared contractual
 release and a conformance result are distinct. Java CI invokes the complete
-`./bin/check`, including mandatory shared conformance against `v0.10.0`;
+`./bin/check`, including mandatory shared conformance against `v0.11.1`;
 see [validation and CI](usage.md#complete-validation). Verification reports
 retain their historical source revisions and results.

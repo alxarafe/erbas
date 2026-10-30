@@ -3,6 +3,7 @@ package com.alxarafe.erbas;
 import org.springframework.boot.SpringApplication;
 import com.alxarafe.erbas.core.CoreConfiguration;
 import com.alxarafe.erbas.wms.infrastructure.WmsConfiguration;
+import com.alxarafe.erbas.ai.infrastructure.AiConfiguration;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.context.annotation.Import;
@@ -16,7 +17,7 @@ import java.util.stream.Collectors;
 
 @SpringBootConfiguration
 @EnableAutoConfiguration
-@Import({CoreConfiguration.class, WmsConfiguration.class})
+@Import({CoreConfiguration.class, WmsConfiguration.class, AiConfiguration.class})
 public class ErbasApplication {
     @Bean
     public CapabilitySchemaCatalog capabilitySchemas() throws IOException {

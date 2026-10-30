@@ -35,8 +35,10 @@ See [USERS-001 verification](docs/verification/users-001.md) and
 
 CORE module administration lists available descriptors and changes persistent
 enabled state atomically, respecting dependencies. Normal startup includes the
-production WMS module and its UoM catalogue. The Maven reactor physically separates
-CORE/platform, WMS and the executable host, which explicitly composes both.
+production WMS module and the AI assistant module. The Maven reactor physically
+separates CORE/platform, WMS, AI and the executable host, which composes them explicitly.
+AI orchestrates effective READ capabilities through CORE. No real AI provider is
+configured; normal requests return `assistant_unavailable`. See [AI](docs/ai.md).
 See the [physical architecture decision](docs/decisions/0002-physical-module-boundaries.md).
 Canonical development modules are explicitly enabled only in disposable
 conformance composition. See [modularity](docs/modularity.md#core-module-administration).
@@ -77,7 +79,7 @@ No host Java, Maven or Bruno is needed. See [usage](docs/usage.md).
 
 ## Status and documentation
 
-Java implements the published ERBAS Contract `v0.10.0`, recorded in
+Java implements the published ERBAS Contract `v0.11.1`, recorded in
 [contract.revision](contract.revision). The supplied checkout must be clean and
 its release tag and HEAD must resolve to the expected immutable commit.
 `./bin/check` is authoritative locally and in GitHub Actions, where shared Bruno

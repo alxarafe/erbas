@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import com.alxarafe.erbas.modularity.ModuleRegistry;
 import com.alxarafe.erbas.modularity.ModuleStateService;
 import com.alxarafe.erbas.wms.WmsModule;
+import com.alxarafe.erbas.ai.AiModule;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
@@ -20,6 +21,6 @@ class ErbasApplicationTests {
 
     @Test
     void applicationContextLoads() {
-        assertThat(modules.modules().stream().map(module -> module.descriptor().id())).containsExactly(WmsModule.ID);
+        assertThat(modules.modules().stream().map(module -> module.descriptor().id())).containsExactly(AiModule.ID, WmsModule.ID);
     }
 }

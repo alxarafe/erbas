@@ -25,6 +25,7 @@
     <modules>
         <module>erbas-core</module>
         <module>modules/wms</module>
+        <module>modules/ai</module>
         <module>erbas-host</module>
     </modules>
 
@@ -38,6 +39,11 @@
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>erbas-wms</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>erbas-ai</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

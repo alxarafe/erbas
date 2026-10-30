@@ -57,7 +57,7 @@ class ModuleGatingIT {
     private static final String UNAVAILABLE_ID = "module-gating-test-unavailable";
     private static final String EMAIL = "module-gating-admin@example.test";
     private static final String PASSWORD = "module-gating-fixture-password";
-    private static final String ABSENT_API_PATH = "/api/ai/assistant/invocations";
+    private static final String ABSENT_API_PATH = "/api/module-gating-test/absent";
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
     @Value("${local.server.port}") private int port;
     @Autowired private ModuleStateService states;

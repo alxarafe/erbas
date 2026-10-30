@@ -7,6 +7,11 @@ CapabilitySchemaReference
 Capability
 CapabilityCollection
 CapabilityNotFound
+AiAssistantInvocationRequest
+AiAssistantInvocation
+AiAssistantToolUsage
+AiAssistantUnavailable
+AiAssistantExecutionFailed
 WmsUomCode
 WmsUomDescription
 WmsUomDescriptionInput
