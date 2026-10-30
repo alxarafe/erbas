@@ -19,11 +19,11 @@ jobs:
           path: erbas
           persist-credentials: false
 
-      - name: Check out published contract v0.11.1
+      - name: Check out published contract v0.12.0
         uses: actions/checkout@v7.0.1
         with:
           repository: alxarafe/erbas-contract
-          ref: v0.11.1
+          ref: v0.12.0
           path: erbas-contract
           persist-credentials: false
 

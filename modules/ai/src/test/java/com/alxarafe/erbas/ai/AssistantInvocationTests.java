@@ -9,6 +9,7 @@ import com.alxarafe.erbas.ai.infrastructure.UnavailableAssistantProvider;
 import com.alxarafe.erbas.auth.application.UserIdentity;
 import com.alxarafe.erbas.capabilities.*;
 import com.alxarafe.erbas.modularity.*;
+import com.alxarafe.erbas.read.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -54,11 +55,13 @@ class AssistantInvocationTests {
     private final Handler second = new Handler(SECOND);
     private final CapabilityInvocation core = new CapabilityInvocation(discovery,
             new CapabilityInvocationRegistry(registry, List.of(first, second)), coreAudit::add);
+    private final ReadPrimitiveRouter primitives = new ReadPrimitiveRouter(new ReadPrimitiveRegistry(List.of(), modules),
+            states, id -> Optional.ofNullable(current.get()), List.of(), entry -> { });
 
     private AssistantInvocation assistant(AiAssistantProvider provider) { return assistant(provider, user -> user.admin()); }
     private AssistantInvocation assistant(AiAssistantProvider provider, AiAssistantPermission permission) {
         states.synchronize();
-        return new AssistantInvocation(permission, states, discovery, core, user -> current.get(), provider, aiAudit::add);
+        return new AssistantInvocation(permission, states, discovery, core, primitives, user -> current.get(), provider, aiAudit::add);
     }
     @Test void moduleIsNormallyRegisteredAndCanDisableAndRestore() {
         var module = new AiModule();
@@ -95,14 +98,14 @@ class AssistantInvocationTests {
             public Optional<Boolean> find(String id) { throw new AssertionError("unavailable module state read"); }
             public void update(Consumer<Map<String, Boolean>> change) { throw new AssertionError(); }
         });
-        var assistant = new AssistantInvocation(user -> true, empty, discovery, core, user -> user,
+        var assistant = new AssistantInvocation(user -> true, empty, discovery, core, primitives, user -> user,
                 new UnavailableAssistantProvider(), aiAudit::add);
         assertThat(assistant.invoke(ADMIN, () -> { throw new AssertionError("body read"); }).errorCode())
                 .isEqualTo(AssistantInvocation.MODULE_DISABLED);
     }
     @Test void directAnswerHasEmptyProvenanceAndOnlyEffectiveReadToolsAreExposed() {
         var assistant = assistant((message, tools, results) -> {
-            assertThat(tools).extracting(Capability::id).containsExactly(FIRST, SECOND);
+            assertThat(tools).extracting(AiAssistantProvider.Tool::id).containsExactly(FIRST, SECOND);
             assertThat(results).isEmpty();
             return new AiAssistantProvider.Answer("fixture answer");
         });
@@ -131,14 +134,15 @@ class AssistantInvocationTests {
         var assistant = assistant((message, tools, results) -> {
             if (results.isEmpty()) return new AiAssistantProvider.ToolCall(SECOND, json.createObjectNode());
             if (results.size() == 1) return new AiAssistantProvider.ToolCall(FIRST, json.createObjectNode());
-            assertThat(results).extracting(AiAssistantProvider.ToolResult::capabilityId).containsExactly(SECOND, FIRST);
+            assertThat(results).extracting(AiAssistantProvider.ToolResult::id).containsExactly(SECOND, FIRST);
             assertThat(results.getFirst().output().get("value").asString()).isEqualTo(PRIVATE_DATA);
             return new AiAssistantProvider.Answer("Answer based on actual tool results.");
         });
         var result = assistant.invoke(ADMIN, () -> BODY);
         assertThat(result.errorCode()).isNull();
         var used = result.envelope().toolsUsed();
-        assertThat(used).extracting(AiAssistantAuditSink.ToolUsage::capabilityId).containsExactly(SECOND, FIRST);
+        assertThat(used).allSatisfy(usage -> assertThat(usage).isInstanceOf(AiAssistantAuditSink.CapabilityUsage.class));
+        assertThat(used).extracting(usage -> ((AiAssistantAuditSink.CapabilityUsage) usage).capabilityId()).containsExactly(SECOND, FIRST);
         assertThat(used).extracting(AiAssistantAuditSink.ToolUsage::invocationId).doesNotHaveDuplicates()
                 .doesNotContain(result.envelope().invocationId());
         assertThat(used).extracting(AiAssistantAuditSink.ToolUsage::invocationId)
@@ -151,7 +155,7 @@ class AssistantInvocationTests {
     @ParameterizedTest @ValueSource(strings = {"module", "permission", "demotion", "disabled-user"})
     void changedAuthorityAfterCatalogueIsRejectedByCore(String change) {
         var assistant = assistant((message, tools, results) -> {
-            assertThat(tools).extracting(Capability::id).contains(FIRST);
+            assertThat(tools).extracting(AiAssistantProvider.Tool::id).contains(FIRST);
             switch (change) {
                 case "module" -> states.disable(OWNER);
                 case "permission" -> grants.clear();

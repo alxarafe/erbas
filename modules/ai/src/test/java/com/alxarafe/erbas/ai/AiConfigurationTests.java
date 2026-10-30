@@ -43,6 +43,8 @@ class AiConfigurationTests {
         context.registerBean(ModuleStateService.class, () -> mock(ModuleStateService.class));
         context.registerBean(CapabilityDiscovery.class, () -> mock(CapabilityDiscovery.class));
         context.registerBean(CapabilityInvocation.class, () -> mock(CapabilityInvocation.class));
+        context.registerBean(com.alxarafe.erbas.read.ReadPrimitiveRouter.class,
+                () -> mock(com.alxarafe.erbas.read.ReadPrimitiveRouter.class));
         context.registerBean(UserAdministration.class, () -> mock(UserAdministration.class));
         context.registerBean(MessageSource.class, StaticMessageSource::new);
         context.register(AiConfiguration.class); context.refresh();

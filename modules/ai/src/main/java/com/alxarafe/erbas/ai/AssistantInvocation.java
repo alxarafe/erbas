@@ -19,6 +19,7 @@ import com.alxarafe.erbas.modularity.ModuleDisabledException;
 import com.alxarafe.erbas.modularity.ModuleStateService;
 import com.alxarafe.erbas.modularity.ModuleUnavailableException;
 import com.alxarafe.erbas.modularity.http.ModuleEndpointInterceptor;
+import com.alxarafe.erbas.read.ReadPrimitiveRouter;
 import tools.jackson.databind.json.JsonMapper;
 
 /** AI governance only. CORE remains the sole authority for every business tool execution. */
@@ -34,15 +35,17 @@ public final class AssistantInvocation {
     private final ModuleStateService states;
     private final CapabilityDiscovery discovery;
     private final CapabilityInvocation capabilities;
+    private final ReadPrimitiveRouter primitives;
     private final Function<UserIdentity, UserIdentity> currentIdentity;
     private final AiAssistantProvider provider;
     private final AiAssistantAuditSink audit;
     private final JsonMapper json = new JsonMapper();
 
     public AssistantInvocation(AiAssistantPermission permission, ModuleStateService states, CapabilityDiscovery discovery,
-            CapabilityInvocation capabilities, Function<UserIdentity, UserIdentity> currentIdentity,
+            CapabilityInvocation capabilities, ReadPrimitiveRouter primitives, Function<UserIdentity, UserIdentity> currentIdentity,
             AiAssistantProvider provider, AiAssistantAuditSink audit) {
         this.permission = permission; this.states = states; this.discovery = discovery; this.capabilities = capabilities;
+        this.primitives = primitives;
         this.currentIdentity = currentIdentity; this.provider = provider; this.audit = audit;
     }
     public Result invoke(UserIdentity user, Supplier<String> body) {
@@ -57,7 +60,12 @@ public final class AssistantInvocation {
             else {
                 states.requireEnabled(AiModule.ID);
                 String message = AssistantJson.message(body.get());
-                var tools = discovery.effective(user).stream().filter(capability -> Capability.READ.equals(capability.effect())).toList();
+                var tools = new ArrayList<AiAssistantProvider.Tool>();
+                discovery.effective(currentIdentity.apply(user)).stream().filter(capability -> Capability.READ.equals(capability.effect()))
+                        .forEach(capability -> tools.add(new AiAssistantProvider.Tool(AiAssistantProvider.Kind.CAPABILITY,
+                                capability.id(), capability.name(), capability.description(), json.valueToTree(capability.inputSchema()))));
+                primitives.effective(user.userId()).forEach(primitive -> tools.add(new AiAssistantProvider.Tool(
+                        AiAssistantProvider.Kind.PRIMITIVE, primitive.id(), primitive.name(), primitive.description(), primitive.inputSchema())));
                 result = execute(id, user, message, tools, used);
             }
         } catch (ModuleDisabledException | ModuleUnavailableException disabled) { result = Result.error(MODULE_DISABLED); }
@@ -74,27 +82,41 @@ public final class AssistantInvocation {
         }
         return result;
     }
-    private Result execute(String id, UserIdentity user, String message, List<Capability> tools,
+    private Result execute(String id, UserIdentity user, String message, List<AiAssistantProvider.Tool> tools,
             List<AiAssistantAuditSink.ToolUsage> used) {
         var results = new ArrayList<AiAssistantProvider.ToolResult>();
         var coreIds = new HashSet<String>();
         try {
             while (true) {
-                var turn = provider.respond(message, tools, List.copyOf(results));
+                var turn = provider.respond(message, List.copyOf(tools), List.copyOf(results));
                 if (turn instanceof AiAssistantProvider.Answer answer) {
                     return AiText.validAnswer(answer.text()) ? new Result(new Envelope(id, answer.text(), used), null)
                             : Result.error(FAILED);
                 }
-                if (!(turn instanceof AiAssistantProvider.ToolCall call) || used.size() >= MAX_TOOL_CALLS) return Result.error(FAILED);
-                // Refresh trusted persisted identity even within a single HTTP request. No permission is inferred here.
-                var current = currentIdentity.apply(user);
-                var execution = capabilities.invoke(current, call.capabilityId(), () -> json.writeValueAsString(
-                        Collections.singletonMap(CapabilityInvocationJson.INPUT, call.input())));
-                if (execution.errorCode() != null || execution.envelope() == null) return Result.error(FAILED);
-                var envelope = execution.envelope();
-                if (id.equals(envelope.invocationId()) || !coreIds.add(envelope.invocationId())) return Result.error(FAILED);
-                used.add(new AiAssistantAuditSink.ToolUsage(envelope.capabilityId(), envelope.invocationId()));
-                results.add(new AiAssistantProvider.ToolResult(envelope.capabilityId(), json.valueToTree(envelope.output())));
+                if (used.size() >= MAX_TOOL_CALLS) return Result.error(FAILED);
+                AiAssistantAuditSink.ToolUsage usage;
+                AiAssistantProvider.ToolResult toolResult;
+                if (turn instanceof AiAssistantProvider.ToolCall call) {
+                    // CORE-CAP-002 retains its own resolution, validation, execution and audit.
+                    var execution = capabilities.invoke(currentIdentity.apply(user), call.capabilityId(), () -> json.writeValueAsString(
+                            Collections.singletonMap(CapabilityInvocationJson.INPUT, call.input())));
+                    if (execution.errorCode() != null || execution.envelope() == null) return Result.error(FAILED);
+                    var envelope = execution.envelope();
+                    usage = new AiAssistantAuditSink.CapabilityUsage(envelope.capabilityId(), envelope.invocationId());
+                    toolResult = new AiAssistantProvider.ToolResult(AiAssistantProvider.Kind.CAPABILITY, envelope.capabilityId(),
+                            json.valueToTree(envelope.output()));
+                } else if (turn instanceof AiAssistantProvider.PrimitiveCall call) {
+                    var execution = primitives.invoke(user.userId(), call.primitiveId(), call.input(),
+                            new ReadPrimitiveRouter.Origin(id, null, used.size() + 1));
+                    if (execution.failure() != null || execution.execution() == null) return Result.error(FAILED);
+                    var envelope = execution.execution();
+                    usage = new AiAssistantAuditSink.PrimitiveUsage(envelope.primitiveId(), envelope.invocationId());
+                    toolResult = new AiAssistantProvider.ToolResult(AiAssistantProvider.Kind.PRIMITIVE, envelope.primitiveId(), envelope.output());
+                } else return Result.error(FAILED);
+                if (usage.invocationId() == null || usage.invocationId().isBlank() || id.equals(usage.invocationId())
+                        || !coreIds.add(usage.invocationId())) return Result.error(FAILED);
+                used.add(usage);
+                results.add(toolResult);
             }
         } catch (AiAssistantProvider.Unavailable temporary) { return Result.error(UNAVAILABLE); }
         catch (RuntimeException failure) { return Result.error(FAILED); }

@@ -79,7 +79,7 @@ No host Java, Maven or Bruno is needed. See [usage](docs/usage.md).
 
 ## Status and documentation
 
-Java implements the published ERBAS Contract `v0.11.1`, recorded in
+Java implements the published ERBAS Contract `v0.12.0`, recorded in
 [contract.revision](contract.revision). The supplied checkout must be clean and
 its release tag and HEAD must resolve to the expected immutable commit.
 `./bin/check` is authoritative locally and in GitHub Actions, where shared Bruno

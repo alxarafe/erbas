@@ -9,6 +9,8 @@ CapabilityCollection
 CapabilityNotFound
 AiAssistantInvocationRequest
 AiAssistantInvocation
+AiAssistantCapabilityUsage
+AiAssistantPrimitiveUsage
 AiAssistantToolUsage
 AiAssistantUnavailable
 AiAssistantExecutionFailed

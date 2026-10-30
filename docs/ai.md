@@ -1,12 +1,14 @@
 # AI assistant READ orchestration (AI-001)
 
-Java adopts **erbas-contract v0.11.1** directly. AI-001 was introduced in v0.11.0;
-v0.11.1 changes only the conformance runner timeout, with no HTTP or semantic change.
-The immutable annotated tag object is `5ea047b3375cf0362397ee1e21c95d4991f09c10`,
-targeting `5517f0df5d3cacc57c35ef704131dcb30ad9dde2`.
-The normative [design](https://github.com/alxarafe/erbas-contract/blob/v0.11.1/docs/modules/ai/ai-001.md),
-[OpenAPI](https://github.com/alxarafe/erbas-contract/blob/v0.11.1/openapi/modules/ai/contract.yaml)
-and [contract verification](https://github.com/alxarafe/erbas-contract/blob/v0.11.1/docs/verification/ai-001.md)
+Java adopts **erbas-contract v0.12.0**. The endpoint, request, errors and existing
+capability provenance are unchanged; `toolsUsed` now also supports a closed
+primitive variant. The immutable annotated tag object is
+`070990bef7bc0aa8ca8876c6b112d4edc6cf99d7`, targeting
+`0d3d1c1cd81cc39b9d9eb8840381c415cb909363`. Historical preparation wording inside
+the release does not supersede this published Git identity.
+The normative [design](https://github.com/alxarafe/erbas-contract/blob/v0.12.0/docs/modules/ai/ai-001.md),
+[OpenAPI](https://github.com/alxarafe/erbas-contract/blob/v0.12.0/openapi/modules/ai/contract.yaml)
+and [contract verification](https://github.com/alxarafe/erbas-contract/blob/v0.12.0/docs/verification/ai-001.md)
 remain owned by the contract repository. Earlier Java verification reports remain historical.
 
 ## Module and security boundary
@@ -37,7 +39,9 @@ bundles and standard `Accept-Language`, with deterministic English fallback.
 ## Providers and grounding
 
 `AiAssistantProvider` models a synchronous turn: final answer or one untrusted
-tool request. After a successful CORE call, the provider receives its actual
+capability or primitive request. Its catalogue contains only kind, identity,
+name, description and input schema, without executors, permissions or modules.
+After a successful CORE call, the provider receives its actual
 output and may request another tool or return its final answer. No agent
 framework, provider SDK, API key, internet call or real LLM is installed.
 
@@ -55,13 +59,14 @@ Tests change persisted data and verify that the answer changes accordingly.
 
 ## CORE execution and provenance
 
-The tool catalogue comes exclusively from `CapabilityDiscovery.effective`, filtered
-to `effect=read`. AI knows no WMS services, controllers, repositories, JDBC or HTTP
+Capabilities come from `CapabilityDiscovery.effective`, filtered to `effect=read`;
+primitives come from the neutral Core `ReadPrimitiveRouter.effective`.
+AI knows no WMS services, controllers, repositories, JDBC or HTTP
 loopback. Future registered READ capabilities enter the catalogue through normal
 CORE registration; no WMS list is hard-coded in orchestration. Only the validation
 adapter owns the published WMS fixture intent identifiers.
 
-Every tool request goes through the real `CapabilityInvocation.invoke` service.
+Every capability request goes through the real `CapabilityInvocation.invoke` service.
 Its body is built internally from the structured tool input, with no caller
 identity or permissions. Before each call, the composition refreshes the trusted
 user through CORE `UserAdministration.find`, including changes during the same
@@ -70,16 +75,45 @@ permissions and input, executes its provider handler, validates output and audit
 AI does not duplicate authorization or dispatch. A denied/failed tool terminates
 orchestration safely, without privilege escalation or retries.
 
+A primitive is an elementary module-owned READ operation, distinct from a
+capability. Modules explicitly register Spring `ReadPrimitiveExecutor` beans,
+each supplying its `ReadPrimitive` descriptor, closed input schema, matching
+input validator, executor and output validator. `ReadPrimitiveRegistry` snapshots
+those bindings in ordinal ID order and fails startup on invalid declarations,
+non-READ effects, duplicate IDs or unregistered owning modules. IDs have exactly
+three lowercase dot-separated segments, with internal hyphens allowed.
+
+`ReadPrimitiveRouter` re-reads the current persisted user via
+`UserAdministration.find` for both discovery and every execution. Enabled state,
+functional permission policies and current module state are checked again before
+the registered input validator/executor can run. The existing administrator
+business bridge participates through `FunctionalPermissionPolicy`; the independent
+AI invoke policy does not. Revocation/demotion, user disable and module disable
+within a single AI request therefore invalidate subsequent calls. No grants are
+cached and no new permission persistence model is introduced.
+
+The router dispatches only by registered ID; it accepts no URL, HTTP method or
+arbitrary endpoint. It never routes capabilities, which retain CORE-CAP-001/002.
+There is no primitive HTTP API. The production primitive registry is deliberately
+empty: v0.12.0 mandates no concrete inventory operation. Fixtures exist only in
+Java test sources, including a PostgreSQL-backed fixture for HTTP provenance and
+persisted authorization checks. They are absent even from the shared validation
+profile. No fictitious productive WMS primitive has been added.
+
 `MAX_TOOL_CALLS` is a finite server-owned budget (currently eight). Exhaustion,
 invalid provider turns/answers and unrecoverable execution failures return the
-safe execution error. The budget is not request or response state.
+safe execution error. Capabilities and primitives share this single global budget.
+The budget is not request or response state.
 
 Successful responses have exactly `invocationId`, nonempty `answer` and
 `toolsUsed`. The AI ID is a new server-generated opaque identifier, distinct from
-every successful CORE invocation ID. `toolsUsed` is always present and preserves
-successful execution order; each entry contains only `capabilityId` and
-`invocationId`. There is no `primitiveId` or future provenance union. Failed or
-denied attempts and raw inputs/outputs never enter this metadata.
+every successful tool invocation ID. `toolsUsed` is always present and preserves
+the actual global sequence, including mixed and repeated executions. Its sealed
+Java variants serialize to exactly `{capabilityId, invocationId}` or
+`{primitiveId, invocationId}`, never both, without a type discriminator or other
+fields. Each successful execution has a fresh opaque server-generated ID, even
+when repeating one primitive. Failed/denied attempts and raw inputs/outputs never
+enter this metadata. Primitive failures map to the existing safe AI execution error.
 
 ## Errors and audit
 
@@ -102,7 +136,13 @@ records the AI ID, available authenticated subject, timestamp, completed/denied/
 outcome, duration, successful tool identity links and safe error code. Correlation
 remains null when unavailable. An AI-owned servlet filter outside Spring Security
 also audits rejected authentication without reading credentials or request body.
-CORE continues auditing every tool attempt. Neither audit includes full user
+CORE-CAP-002 continues auditing every capability attempt. The separate
+`ReadPrimitiveAuditSink` records each primitive attempt with its own invocation
+ID, safe primitive/module/subject metadata when resolved, timestamp, duration,
+outcome and safe internal failure classification. Its trusted origin links the
+parent AI ID, nullable correlation and global execution sequence. No hidden
+module metadata is resolved merely to enrich a denied audit entry.
+None of these audits includes full user
 messages, prompts, answers, provider responses, tool input/output or credentials.
 There is no public audit API or persistence table.
 
@@ -111,17 +151,19 @@ There is no public audit API or persistence table.
 Use the sole complete authority with an explicit immutable checkout:
 
 ```bash
-ERBAS_CONTRACT_DIR=/path/to/clean-v0.11.1-checkout ./bin/check
+ERBAS_CONTRACT_DIR=/path/to/clean-v0.12.0-checkout ./bin/check
 ```
 
 The isolated app already uses the validation profile; no LLM service is needed.
-CI pins the same v0.11.1 tag and validates its annotated object and target before
+CI pins the same v0.12.0 tag and validates its annotated object and target before
 provisioning and shared calls. Shared inventory is 590 requests / 2587 named checks,
 30 requests / 120 checks more than v0.10.0. These counts are separate from Java tests.
 
 Native tests cover scalar/strict parsing, module/permission precedence, provider
 selection, catalogue filtering, AI-only authorization, untrusted tools, current
-authority, grounding, budget, safe failures and payload-free audit. Real
+authority, grounding, budget, safe failures and payload-free audit. Neutral
+primitive registration, current authorization and typed/mixed provenance are
+also exercised, including URL/unregistered-ID rejection and the shared budget. Real
 PostgreSQL/HTTP tests exercise successful CORE/WMS calls, persisted facts, module
 disable/restore, identity changes within one request, native localization and safe
 errors. Architecture/artifact tests enforce AI-to-CORE dependency direction and
@@ -161,3 +203,26 @@ Run `erbas-check-96114-21565-918` ended with `CHECK_EXIT=0`,
 
 This is local verification, not remote CI or deployment evidence. No push, tag,
 release or publication is part of this ticket.
+
+### v0.12.0 controlled primitive verification
+
+From base `34569448233881a8f5208e6acc493b893bac17fd`, the complete check used a
+clean independent checkout of the exact v0.12.0 tag identified above.
+Run `erbas-check-184950-16472-26014` passed with `CHECK_EXIT=0`,
+`CLEANUP_STATUS=passed` and `CLEANUP_EXIT=0`.
+
+- **803 distinct Java tests passed:** 581 native and 222 PostgreSQL integration
+  cases. The 43 additions comprise 26 Core primitive cases, 12 AI controlled-tool
+  cases, one architecture guard and four HTTP/PostgreSQL cases. Existing tests
+  remain enabled; independent Core checking is not counted twice.
+- Shared live **v0.12.0 conformance passed**. The release's official inventory
+  and typed-provenance tests also passed in an isolated, read-only Docker runner:
+  10 static tests and **590 requests / 2587 named checks**, separate from Java.
+- Final image, fresh migrations, health, authentication/Users, modules, WMS,
+  CORE-CAP-001/002, AI, both tool audit paths, secrecy probes and owned resource
+  cleanup passed. The native context asserts an empty production primitive registry.
+- No migrations, dependencies, productive primitives or external providers were
+  added. Existing metadata HTTP 401, Mockito agent and deprecated-test-API
+  warnings are non-blocking. Eclipse setup and host file ownership are preserved.
+
+This evidence is local validation only; publication requires separate approval.

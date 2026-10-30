@@ -67,13 +67,12 @@ class DeterministicAssistantProviderTests {
         assertThat(answer(provider.respond(GREETING_REQUEST, List.of(), List.of()))).isEqualTo(english);
     }
     private String answer(AiAssistantProvider.Turn turn) { return ((AiAssistantProvider.Answer) turn).text(); }
-    private Capability descriptor(String id) {
-        var schema = new Capability.SchemaReference(Capability.SchemaReference.PREFIX + "Fixture");
-        return new Capability(id, "fixture.module", "1.0.0", "Fixture catalogue", "Read actual fixture data.", Capability.READ,
-                schema, schema, List.of());
+    private AiAssistantProvider.Tool descriptor(String id) {
+        return new AiAssistantProvider.Tool(AiAssistantProvider.Kind.CAPABILITY, id,
+                "Fixture catalogue", "Read actual fixture data.", json.createObjectNode());
     }
     private AiAssistantProvider.ToolResult result(String id, String code, String label) {
-        return new AiAssistantProvider.ToolResult(id, json.valueToTree(Map.of("total", 1,
+        return new AiAssistantProvider.ToolResult(AiAssistantProvider.Kind.CAPABILITY, id, json.valueToTree(Map.of("total", 1,
                 "items", List.of(Map.of("code", code, "name", label)))));
     }
 }

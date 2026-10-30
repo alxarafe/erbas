@@ -80,7 +80,18 @@ class ArchitectureTests {
                     "org.springframework.ai", "com.openai", "io.modelcontextprotocol");
         }
         var orchestration = Files.readString(AI.resolve(JAVA_SOURCES + "/com/alxarafe/erbas/ai/AssistantInvocation.java"));
-        assertThat(orchestration).contains("capabilities.invoke(", "discovery.effective(");
+        assertThat(orchestration).contains("capabilities.invoke(", "discovery.effective(", "primitives.invoke(", "primitives.effective(");
+    }
+
+    @Test
+    void primitiveRouterIsNeutralAndNoProductiveFixtureOrHttpTransportIsInstalled() throws Exception {
+        var router = Files.readString(CORE.resolve(JAVA_SOURCES + "/com/alxarafe/erbas/read/ReadPrimitiveRouter.java"));
+        assertThat(router).contains("users.apply(").doesNotContain("java.net.", "RestTemplate", "WebClient", "@RestController");
+        for (var module : List.of(CORE, WMS, AI)) {
+            for (var file : files(module.resolve("src/main"))) {
+                assertThat(Files.readString(file)).doesNotContain("wms.inventory.list", "fixture.units.read");
+            }
+        }
     }
 
     @Test

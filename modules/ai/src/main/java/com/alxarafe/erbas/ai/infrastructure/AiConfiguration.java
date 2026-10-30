@@ -7,6 +7,7 @@ import com.alxarafe.erbas.auth.application.UserAdministration;
 import com.alxarafe.erbas.capabilities.CapabilityDiscovery;
 import com.alxarafe.erbas.capabilities.CapabilityInvocation;
 import com.alxarafe.erbas.modularity.ModuleStateService;
+import com.alxarafe.erbas.read.ReadPrimitiveRouter;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.*;
@@ -31,9 +32,9 @@ public class AiConfiguration {
         return entry -> logger.info("AI assistant audit: {}", entry);
     }
     @Bean public AssistantInvocation assistantInvocation(AiAssistantPermission permission, ModuleStateService states,
-            CapabilityDiscovery discovery, CapabilityInvocation capabilities, UserAdministration users,
+            CapabilityDiscovery discovery, CapabilityInvocation capabilities, ReadPrimitiveRouter primitives, UserAdministration users,
             AiAssistantProvider provider, AiAssistantAuditSink audit) {
-        return new AssistantInvocation(permission, states, discovery, capabilities,
+        return new AssistantInvocation(permission, states, discovery, capabilities, primitives,
                 user -> users.find(user.getName()).orElse(null), provider, audit);
     }
     @Bean public FilterRegistrationBean<AssistantAuthenticationAuditFilter> assistantAuthenticationAudit(AssistantInvocation assistant) {

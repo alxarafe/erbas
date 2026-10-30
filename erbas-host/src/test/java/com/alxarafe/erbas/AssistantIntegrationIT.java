@@ -15,6 +15,7 @@ import com.alxarafe.erbas.ai.infrastructure.AiConfiguration;
 import com.alxarafe.erbas.ai.infrastructure.DeterministicAssistantProvider;
 import com.alxarafe.erbas.auth.infrastructure.JdbcAuthenticationStore;
 import com.alxarafe.erbas.capabilities.*;
+import com.alxarafe.erbas.read.*;
 import com.alxarafe.erbas.modularity.*;
 import com.alxarafe.erbas.modularity.http.ModuleController;
 import com.alxarafe.erbas.wms.WmsModule;
@@ -61,6 +62,8 @@ class AssistantIntegrationIT {
     private static final String UOM_CODE = "AICAPU";
     private static final String STORAGE_CODE = "AICAPS";
     private static final String FAMILY_CODE = "AICAPF";
+    // Test-only primitive. It is never installed by validation/production composition.
+    private static final String FIXTURE_PRIMITIVE = "fixture.units.read";
     @Value("${local.server.port}") private int port;
     @Autowired private JdbcAuthenticationStore accounts;
     @Autowired private PasswordEncoder encoder;
@@ -70,6 +73,7 @@ class AssistantIntegrationIT {
     @Autowired private CapabilityDiscovery discovery;
     @Autowired private RecordingAiAudit aiAudit;
     @Autowired private RecordingCoreAudit coreAudit;
+    @Autowired private RecordingPrimitiveAudit primitiveAudit;
     @Autowired private TestPermission permission;
     @Autowired private ScriptedProvider provider;
     private final JsonMapper json = new JsonMapper();
@@ -96,7 +100,7 @@ class AssistantIntegrationIT {
     @BeforeEach void resetOnlyTestOverrides() {
         permission.aiOnly.clear(); provider.override.set(null); provider.beforeTool.set(null);
         states.enable(AiModule.ID); states.enable(WmsModule.ID);
-        aiAudit.entries.clear(); coreAudit.entries.clear();
+        aiAudit.entries.clear(); coreAudit.entries.clear(); primitiveAudit.entries.clear();
     }
     @AfterAll void removeOnlyOwnedFixtures() {
         states.enable(AiModule.ID); states.enable(WmsModule.ID);
@@ -204,6 +208,66 @@ class AssistantIntegrationIT {
             assertThat(response.get("answer").asString()).contains(changed).doesNotContain("Persisted AI unit");
         } finally { jdbc.update("UPDATE wms_uoms SET description = ? WHERE id = ?", "Persisted AI unit", ownedRows.get("wms_uoms")); }
     }
+    @Test void mixedProvenanceOverHttpUsesRealCoreAndTestOnlyPrimitiveWithPersistedData() throws Exception {
+        var sequence = List.of(FIXTURE_PRIMITIVE, UOMS_LIST, FIXTURE_PRIMITIVE);
+        provider.override.set((message, tools, results) -> {
+            if (results.size() < sequence.size()) {
+                String id = sequence.get(results.size());
+                return id.equals(UOMS_LIST) ? new AiAssistantProvider.ToolCall(id, json.createObjectNode())
+                        : new AiAssistantProvider.PrimitiveCall(id, json.createObjectNode());
+            }
+            assertThat(results).extracting(AiAssistantProvider.ToolResult::id).containsExactlyElementsOf(sequence);
+            return new AiAssistantProvider.Answer(results.getFirst().output().get("description").asString());
+        });
+        String changed = "Fresh primitive PostgreSQL fact";
+        jdbc.update("UPDATE wms_uoms SET description = ? WHERE id = ?", changed, ownedRows.get("wms_uoms"));
+        try {
+            var response = checked(invoke(admin, body(ONE_READ_REQUEST)), HttpStatus.OK);
+            assertThat(response.get("answer").asString()).isEqualTo(changed);
+            var used = response.get("toolsUsed");
+            var ids = new HashSet<String>();
+            for (int index = 0; index < sequence.size(); index++) {
+                String field = index == 1 ? "capabilityId" : "primitiveId";
+                var entry = used.get(index);
+                String id = entry.get("invocationId").asString();
+                assertThat(id).isNotBlank().isNotEqualTo(response.get("invocationId").asString());
+                assertThat(ids.add(id)).isTrue();
+                assertThat(entry).isEqualTo(json.valueToTree(Map.of(field, sequence.get(index), "invocationId", id)));
+            }
+            assertThat(primitiveAudit.entries).hasSize(2).allSatisfy(entry -> {
+                assertThat(entry.subject()).isEqualTo(Long.toString(adminId));
+                assertThat(entry.origin().parentInvocationId()).isEqualTo(response.get("invocationId").asString());
+                assertThat(entry.outcome()).isEqualTo(ReadPrimitiveAuditSink.Outcome.completed);
+                assertThat(entry.toString()).doesNotContain(changed, PASSWORD, ONE_READ_REQUEST);
+            });
+            assertThat(primitiveAudit.entries).extracting(entry -> entry.origin().sequence()).containsExactly(1, 3);
+            assertThat(coreAudit.entries).hasSize(1);
+            assertThat(json.<JsonNode>valueToTree(aiAudit.entries.getLast().toolsUsed())).isEqualTo(used);
+        } finally { jdbc.update("UPDATE wms_uoms SET description = ? WHERE id = ?", "Persisted AI unit", ownedRows.get("wms_uoms")); }
+    }
+    @ParameterizedTest @ValueSource(strings = {"module", "demotion", "disabled"})
+    void primitiveRereadsPersistedAuthorityWithinSameHttpRequest(String change) throws Exception {
+        provider.override.set((message, tools, results) -> {
+            assertThat(tools).extracting(AiAssistantProvider.Tool::id).contains(FIXTURE_PRIMITIVE);
+            switch (change) {
+                case "module" -> states.disable(WmsModule.ID);
+                case "demotion" -> jdbc.update("UPDATE auth_user SET admin = false WHERE id = ?", adminId);
+                case "disabled" -> jdbc.update("UPDATE auth_user SET enabled = false WHERE id = ?", adminId);
+                default -> throw new AssertionError();
+            }
+            return new AiAssistantProvider.PrimitiveCall(FIXTURE_PRIMITIVE, json.createObjectNode());
+        });
+        try {
+            assertError(invoke(admin, body(ONE_READ_REQUEST)), HttpStatus.INTERNAL_SERVER_ERROR, AssistantInvocation.FAILED);
+            assertThat(primitiveAudit.entries).hasSize(1);
+            assertThat(primitiveAudit.entries.getFirst().outcome()).isEqualTo(ReadPrimitiveAuditSink.Outcome.denied);
+            assertThat(aiAudit.entries.getLast().toolsUsed()).isEmpty();
+            assertThat(coreAudit.entries).isEmpty();
+        } finally {
+            jdbc.update("UPDATE auth_user SET admin = true, enabled = true WHERE id = ?", adminId);
+            states.enable(WmsModule.ID);
+        }
+    }
     @Test void aiOnlyPermissionHasEmptyBusinessToolsAndDoesNotInventState() throws Exception {
         permission.aiOnly.add(normalId);
         var response = checked(invoke(normal, body(MULTIPLE_READ_REQUEST)), HttpStatus.OK);
@@ -299,6 +363,10 @@ class AssistantIntegrationIT {
         final List<Entry> entries = new CopyOnWriteArrayList<>();
         public void record(Entry entry) { entries.add(entry); }
     }
+    static final class RecordingPrimitiveAudit implements ReadPrimitiveAuditSink {
+        final List<Entry> entries = new CopyOnWriteArrayList<>();
+        public void record(Entry entry) { entries.add(entry); }
+    }
     static final class TestPermission implements AiAssistantPermission {
         final Set<Long> aiOnly = java.util.concurrent.ConcurrentHashMap.newKeySet();
         final AiAssistantPermission bridge = new AiConfiguration().aiAssistantPermission();
@@ -311,7 +379,7 @@ class AssistantIntegrationIT {
         final AtomicReference<Runnable> beforeTool = new AtomicReference<>();
         final AiAssistantProvider delegate;
         ScriptedProvider(MessageSource messages) { delegate = new DeterministicAssistantProvider(messages); }
-        public Turn respond(String message, List<Capability> tools, List<ToolResult> results) {
+        public Turn respond(String message, List<Tool> tools, List<ToolResult> results) {
             var active = override.get();
             var turn = (active == null ? delegate : active).respond(message, tools, results);
             if (turn instanceof ToolCall) {
@@ -327,5 +395,23 @@ class AssistantIntegrationIT {
         @Bean @Primary RecordingCoreAudit recordingCoreAudit() { return new RecordingCoreAudit(); }
         @Bean @Primary TestPermission testPermission() { return new TestPermission(); }
         @Bean @Primary ScriptedProvider scriptedProvider(MessageSource messages) { return new ScriptedProvider(messages); }
+        @Bean @Primary RecordingPrimitiveAudit recordingPrimitiveAudit() { return new RecordingPrimitiveAudit(); }
+        @Bean ReadPrimitiveExecutor fixturePrimitive(JdbcTemplate jdbc) {
+            return new ReadPrimitiveExecutor() {
+                public ReadPrimitive descriptor() {
+                    return new ReadPrimitive(FIXTURE_PRIMITIVE, WmsModule.ID, "Test persisted unit", "Test-only primitive fixture",
+                            Capability.READ, new JsonMapper().readTree("{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}"),
+                            List.of(com.alxarafe.erbas.wms.WmsCapabilities.UOMS_READ));
+                }
+                public Object validateInput(JsonNode input) {
+                    if (input == null || !input.isObject() || !input.isEmpty()) throw new InvalidInput();
+                    return input;
+                }
+                public Object execute(Context context, Object input) {
+                    return Map.of("description", jdbc.queryForObject("SELECT description FROM wms_uoms WHERE code = ?", String.class, UOM_CODE));
+                }
+                public boolean validOutput(Object output, Object input) { return output instanceof Map<?, ?>; }
+            };
+        }
     }
 }

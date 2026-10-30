@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.ArrayList;
 import com.alxarafe.erbas.ai.AiAssistantProvider;
-import com.alxarafe.erbas.capabilities.Capability;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import tools.jackson.databind.json.JsonMapper;
@@ -33,17 +32,18 @@ public final class DeterministicAssistantProvider implements AiAssistantProvider
     private final JsonMapper json = new JsonMapper();
     public DeterministicAssistantProvider(MessageSource messages) { this.messages = messages; }
 
-    @Override public Turn respond(String message, List<Capability> tools, List<ToolResult> results) {
+    @Override public Turn respond(String message, List<Tool> tools, List<ToolResult> results) {
         if (GREETING_REQUEST.equals(message)) return new Answer(text(GREETING));
         var requested = INTENTS.stream().filter(intent -> message.toLowerCase(Locale.ROOT).contains(intent.phrase())).toList();
-        var planned = requested.stream().flatMap(intent -> tools.stream().filter(tool -> tool.id().equals(intent.id()))).toList();
+        var planned = requested.stream().flatMap(intent -> tools.stream()
+                .filter(tool -> tool.kind() == Kind.CAPABILITY && tool.id().equals(intent.id()))).toList();
         if (results.size() < planned.size()) {
             return new ToolCall(planned.get(results.size()).id(), json.createObjectNode());
         }
         if (results.isEmpty()) return new Answer(text(UNOBTAINABLE));
         var summaries = new ArrayList<String>();
         for (var result : results) {
-            var descriptor = planned.stream().filter(tool -> tool.id().equals(result.capabilityId())).findFirst().orElseThrow();
+            var descriptor = planned.stream().filter(tool -> tool.kind() == result.kind() && tool.id().equals(result.id())).findFirst().orElseThrow();
             var entries = new ArrayList<String>();
             for (var item : result.output().get(ITEMS)) {
                 String label = item.has(DESCRIPTION) ? item.get(DESCRIPTION).asString() : item.get(NAME).asString();

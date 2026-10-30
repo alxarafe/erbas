@@ -16,11 +16,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class ErbasApplicationTests {
     @Autowired private ModuleRegistry modules;
+    @Autowired private com.alxarafe.erbas.read.ReadPrimitiveRegistry primitives;
     // This native context test has no database; real state synchronization is covered by ITs.
     @MockitoBean private ModuleStateService states;
 
     @Test
     void applicationContextLoads() {
         assertThat(modules.modules().stream().map(module -> module.descriptor().id())).containsExactly(AiModule.ID, WmsModule.ID);
+        assertThat(primitives.primitives()).isEmpty();
     }
 }

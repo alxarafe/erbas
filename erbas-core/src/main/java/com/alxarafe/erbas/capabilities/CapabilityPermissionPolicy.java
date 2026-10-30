@@ -1,9 +1,7 @@
 package com.alxarafe.erbas.capabilities;
 
-import com.alxarafe.erbas.auth.application.UserIdentity;
+import com.alxarafe.erbas.security.FunctionalPermissionPolicy;
 
 /** Functional permission-to-policy mapping, never a grant from a descriptor. */
 @FunctionalInterface
-public interface CapabilityPermissionPolicy {
-    boolean granted(UserIdentity user, String permission);
-}
+public interface CapabilityPermissionPolicy extends FunctionalPermissionPolicy { }
