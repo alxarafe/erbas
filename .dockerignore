@@ -5,3 +5,18 @@ private
 README.md
 LICENSE
 
+# Local editor JDK and optional Eclipse workspace
+.jdk
+.metadata
+
+# Eclipse / m2e / Spring Tools at the root and in current/future modules
+**/.project
+**/.classpath
+**/.settings
+**/.factorypath
+**/.apt_generated
+**/.apt_generated_tests
+**/.externalToolBuilders
+**/.sts4-cache
+**/.springBeans
+

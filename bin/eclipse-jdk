@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() { echo 'Usage: bin/eclipse-jdk [--force|--print-image]' >&2; exit 2; }
+fail() { echo "ERROR: $*" >&2; exit 1; }
+case "$#:${1:-}" in 0:|1:--force|1:--print-image) ;; *) usage ;; esac
+mode="${1:-}"
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+root="$(git -C "$script_dir" rev-parse --show-toplevel 2>/dev/null)" ||
+    fail 'bin/eclipse-jdk must belong to a Git checkout.'
+[[ -r "$root/Dockerfile" ]] || fail 'No readable Dockerfile at the repository root.'
+# Only a single, direct FROM image AS build is authoritative. Do not resolve
+# variables, stage aliases or an alternative image on the caller's behalf.
+image="$(awk '
+    { sub(/\r$/, "") }
+    tolower($1) == "from" && NF >= 4 && tolower($(NF - 1)) == "as" {
+        if (tolower($NF) == "build") {
+            count++
+            image = $2
+            if (NF != 4 || image ~ /\$/ || tolower(image) == "scratch" || aliases[tolower(image)]) invalid = 1
+        }
+        aliases[tolower($NF)] = 1
+    }
+    END { if (count != 1 || invalid) exit 1; print image }
+' "$root/Dockerfile")" || fail 'Expected exactly one direct FROM <image> AS build in Dockerfile.'
+[[ "$image" =~ ^[[:alnum:]][[:alnum:]_.:/@-]*$ ]] || fail 'The build image is not a literal Docker image reference.'
+if [[ "$mode" == --print-image ]]; then printf '%s\n' "$image"; exit 0; fi
+
+jdk="$root/.jdk"
+marker_name='.source-image'
+[[ ! -L "$jdk" ]] || fail 'Refusing to replace a symbolic-link .jdk destination.'
+[[ ! -e "$jdk" || -d "$jdk" ]] || fail '.jdk exists but is not a directory.'
+printf 'Eclipse JDK source: %s\n' "$image"
+if [[ "$mode" != --force && -x "$jdk/bin/java" && -f "$jdk/$marker_name" &&
+        "$(cat -- "$jdk/$marker_name")" == "$image" ]]; then
+    printf 'Eclipse JDK already up to date: %s\n' "$jdk"
+    exit 0
+fi
+command -v docker >/dev/null || fail 'Missing host tool: docker.'
+
+work="$(mktemp -d "$root/.eclipse-jdk.XXXXXXXX")"
+cleanup() {
+    local code=$?
+    trap - EXIT INT TERM
+    # Both renames stay on the repository filesystem. Restore the old JDK if
+    # installation failed between moving it aside and installing the candidate.
+    if [[ -d "$work/previous" && ! -e "$jdk" ]]; then
+        if ! mv -T -- "$work/previous" "$jdk"; then
+            echo "ERROR: restore failed; previous JDK retained at $work/previous" >&2
+            exit 1
+        fi
+    fi
+    [[ "$work" == "$root"/.eclipse-jdk.* && -d "$work" && ! -L "$work" ]] ||
+        fail 'Refusing cleanup of an unexpected temporary directory.'
+    rm -rf -- "$work"
+    exit "$code"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+candidate="$work/jdk"
+mkdir -p -- "$candidate"
+echo 'Refreshing Eclipse JDK from Docker build image...'
+docker run --rm --user "$(id -u):$(id -g)" --network none --read-only \
+    --mount "type=bind,src=$candidate,dst=/target" --entrypoint sh "$image" -eu -c \
+    'test -n "${JAVA_HOME:-}" && test -d "$JAVA_HOME" && cp -R "$JAVA_HOME"/. /target/' ||
+    fail 'JDK extraction failed; the existing .jdk is retained.'
+[[ -f "$candidate/bin/java" && -x "$candidate/bin/java" ]] ||
+    fail 'The extracted JDK has no executable bin/java; the existing .jdk is retained.'
+version="$("$candidate/bin/java" -version 2>&1)" ||
+    fail 'The extracted Java cannot run on this host; the existing .jdk is retained.'
+printf '%s\n' "$image" > "$candidate/$marker_name"
+if [[ -d "$jdk" ]]; then mv -T -- "$jdk" "$work/previous"; fi
+mv -T -- "$candidate" "$jdk"
+printf 'Installed Eclipse JDK: %s\n%s\n' "$jdk" "$version"

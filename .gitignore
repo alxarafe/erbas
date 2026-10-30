@@ -10,3 +10,20 @@
 *.iml
 .DS_Store
 
+# Eclipse / m2e / Spring Tools (including nested Maven modules)
+.project
+.classpath
+.settings/
+.factorypath
+.apt_generated/
+.apt_generated_tests/
+.externalToolBuilders/
+.sts4-cache/
+.springBeans
+
+# Optional workspace metadata at the repository root
+/.metadata/
+
+# Editor JDK extracted from the authoritative Docker build image
+/.jdk/
+

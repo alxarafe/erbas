@@ -5,8 +5,9 @@
 Use Bash, Git, Docker with Compose, and basic shell utilities including GNU
 `timeout`, `mktemp`, `sed`, `grep` and `od`. The Docker daemon must be available.
 The lifecycle scripts resolve the repository root from any working directory;
-other examples below assume the Java repository root. Java, Maven, PostgreSQL, Node.js and
-Bruno run inside Docker, never on the host.
+other examples below assume the Java repository root. Authoritative Java/Maven
+builds and tests, PostgreSQL, Node.js and Bruno run inside Docker. The optional
+Eclipse workflow below uses a local copy of the Docker-provided JDK for editing only.
 
 Existing tools remain Java 25, Spring Boot 4.1.1, Maven 3.10.0 and Wrapper 3.3.4.
 Spring Boot manages the added `spring-boot-starter-security` dependency (4.1.1),
@@ -20,6 +21,67 @@ including Spring Security 7.1.1. Existing image pins remain unchanged.
 
 The selected contract supplies Bruno CLI 4.2.0 and Redocly CLI 2.5.1 in its own
 pinned runner. No collection or tooling is copied into Java.
+
+## Eclipse / m2e / Spring Tools
+
+Eclipse is a regular editing/review environment: navigation, refactoring and quick
+JDT/m2e feedback. JDT/m2e need a local JVM even though Docker/CI remain the build
+and test authority. Do not install a separate host JDK or Maven for this workflow.
+
+1. Clone or update the repository.
+2. Run `./bin/eclipse-jdk`.
+3. In Eclipse, select `File > Import... > Maven > Existing Maven Projects` and
+   choose the ERBAS root. Import the parent reactor and its Maven modules; current
+   and future modules declared in Maven are discovered by m2e, not by this script.
+4. Select `Window > Preferences > Java > Installed JREs > Add... > Standard VM`
+   and choose `<repo>/.jdk`. Give it a stable name such as `ERBAS Docker JDK`.
+   Keep the project execution environment consistent with the imported Maven
+   configuration, rather than maintaining a separate Java version in the setup.
+5. Edit and review normally in Eclipse.
+6. Run `./bin/check` before accepting or publishing changes, with the explicit
+   contract checkout required by [complete validation](#complete-validation).
+
+`bin/eclipse-jdk` locates the checkout through Git using its own script location,
+so it also works when called from a module directory or another working directory.
+A missing checkout or an absent/ambiguous build stage fails clearly. The script
+reads the single direct `FROM <image> AS build` instruction in `Dockerfile`,
+including its tag/digest. That image is the only JDK source; the script does not
+choose a Java version from the POM, resolve build arguments or guess another image.
+No image name, tool version or digest needs to be copied into these instructions.
+
+The script creates a sibling temporary directory as the current user and copies
+`$JAVA_HOME` from the container running with that user's UID/GID. It validates the
+copied `bin/java -version` before writing `.source-image` and replacing `.jdk`.
+The old directory is retained during installation and restored if the replacement
+fails. Extraction/validation failures leave the previous JDK untouched; temporary
+files are cleaned. The destination remains `<repo>/.jdk` across image changes.
+
+`.jdk/.source-image` records only the full source image reference. An executable
+`.jdk/bin/java` with the matching marker makes repeated runs cheap: no Docker
+invocation or copying. A changed image, missing marker or missing executable
+regenerates the JDK. An older manually extracted JDK without the marker is treated
+as having unknown provenance and replaced only after a successful extraction.
+
+After the Docker build image changes, the daily update remains:
+
+```bash
+git pull
+./bin/eclipse-jdk
+```
+
+Eclipse continues using the same `.jdk` path. `./bin/eclipse-jdk --force` refreshes
+unconditionally; `./bin/eclipse-jdk --print-image` prints only the detected image
+without extracting anything. Unknown arguments fail with a short usage message.
+Docker handles its normal image cache/pull behavior.
+
+Docker and `./bin/check` remain authoritative; editor feedback is not complete
+validation. Integration tests requiring PostgreSQL are not promised to run directly
+from Eclipse. No host PostgreSQL port is needed or added. Git and Docker exclude
+Eclipse/m2e/Spring Tools metadata at every module depth, the optional root workspace
+`.metadata/` and the root `.jdk/`; launch configurations are not globally ignored.
+See the native [Eclipse JRE setup](https://help.eclipse.org/latest/topic/org.eclipse.jdt.doc.user/tasks/task-add_new_jre.htm),
+[Git ignore rules](https://git-scm.com/docs/gitignore) and
+[Docker build-context rules](https://docs.docker.com/build/concepts/context/).
 
 ## Development
 
