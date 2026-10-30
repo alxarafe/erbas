@@ -5,7 +5,13 @@ import java.util.*;
 /** Static server declaration. Permission names are deliberately absent from public metadata. */
 public record ResourceDefinition(String id, String version, String moduleId, String idField,
         List<FieldDefinition> fields, Map<ResourceOperation, String> operations, List<RelationDefinition> relations,
-        List<ResourceActionDefinition> actions, List<FieldDefinition.Annotation> annotations, ResourcePresentation presentation) {
+        List<ResourceActionDefinition> actions, List<FieldDefinition.Annotation> annotations, ResourcePresentation presentation,
+        ResourceContextPresentation contextPresentation) {
+    public ResourceDefinition(String id, String version, String moduleId, String idField,
+            List<FieldDefinition> fields, Map<ResourceOperation, String> operations, List<RelationDefinition> relations,
+            List<ResourceActionDefinition> actions, List<FieldDefinition.Annotation> annotations, ResourcePresentation presentation) {
+        this(id, version, moduleId, idField, fields, operations, relations, actions, annotations, presentation, null);
+    }
     public ResourceDefinition {
         if (id == null || id.isBlank() || version == null || version.isBlank() || moduleId == null || moduleId.isBlank()
                 || idField == null || fields == null || operations == null || relations == null || actions == null || annotations == null)
@@ -19,6 +25,7 @@ public record ResourceDefinition(String id, String version, String moduleId, Str
             throw new IllegalArgumentException("Invalid identifier or operations");
         for (var field : fields) if (field.defaultValue() != null) field.value(field.defaultValue(), false);
         if (presentation != null) presentation.validate(fields.stream().map(FieldDefinition::name).toList(), actions.stream().map(ResourceActionDefinition::name).toList());
+        if (contextPresentation != null) contextPresentation.validate(fields, actions);
     }
     public FieldDefinition field(String name) {
         return fields.stream().filter(field -> field.name().equals(name)).findFirst().orElseThrow(ResourceFailure::invalid);

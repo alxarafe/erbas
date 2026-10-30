@@ -20,6 +20,10 @@ ResourceAction
 ResourceFormGroup
 ResourceFormSection
 ResourceFormTab
+ResourceContextPresentationResponse
+ResourceContextPresentation
+ResourceListPresentation
+ResourceListColumn
 ResourcePresentation
 ResourceMetadata
 ResourceSummary

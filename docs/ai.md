@@ -1,7 +1,7 @@
 # AI assistant READ orchestration (AI-001)
 
 Java introduced controlled READ primitives with **erbas-contract v0.12.0**.
-That AI behavior remains unchanged under the current [v0.13.0 adoption](resources.md).
+That AI behavior remains unchanged under the current [v0.14.0 adoption](resources.md).
 `toolsUsed` supports the closed capability and primitive variants. The original
 immutable annotated tag object is
 `070990bef7bc0aa8ca8876c6b112d4edc6cf99d7`, targeting
@@ -152,12 +152,12 @@ There is no public audit API or persistence table.
 Use the sole complete authority with an explicit immutable checkout:
 
 ```bash
-ERBAS_CONTRACT_DIR=/path/to/clean-v0.13.0-checkout ./bin/check
+ERBAS_CONTRACT_DIR=/path/to/clean-v0.14.0-checkout ./bin/check
 ```
 
 The isolated app already uses the validation profile; no LLM service is needed.
-CI pins v0.13.0 and validates its annotated object and target before provisioning
-and shared calls. The current shared inventory is 617 requests / 2655 named checks;
+CI pins v0.14.0 and validates its annotated object and target before provisioning
+and shared calls. The current shared inventory is 622 requests / 2668 named checks;
 the AI scenarios are unchanged. These counts are separate from Java tests.
 
 Native tests cover scalar/strict parsing, module/permission precedence, provider

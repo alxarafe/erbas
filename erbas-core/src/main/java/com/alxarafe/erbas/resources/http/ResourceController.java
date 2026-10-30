@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.*;
 public final class ResourceController {
     public static final String RECORDS = "/api/resources";
     public static final String ACTIONS = "/api/resource-actions";
+    public static final String PRESENTATION_SUFFIX = "/presentation";
+    public static final String PRESENTATION = ResourceMetadata.ROOT + "/{resource}" + PRESENTATION_SUFFIX;
     public static final String DEFINITION_ATTRIBUTE = ResourceController.class.getName() + ".definition";
     private final ResourceRegistry registry;
     private final ResourceRuntime runtime;
@@ -32,6 +34,12 @@ public final class ResourceController {
         var projection = metadata.detail(user, definition);
         String etag = ResourceMetadata.hash(ResourceJson.JSON.writeValueAsString(projection));
         return cache(projection, etag, request);
+    }
+    @GetMapping(PRESENTATION)
+    public ResponseEntity<?> presentation(@AuthenticationPrincipal UserIdentity user, @PathVariable String resource, HttpServletRequest request) {
+        runtime.current(user); noQuery(request); var definition = registry.definition(resource);
+        var projection = metadata.contextPresentation(definition);
+        return cache(projection, ResourceMetadata.hash(ResourceJson.JSON.writeValueAsString(projection)), request);
     }
     @RequestMapping(path = {RECORDS + "/{resource}", RECORDS + "/{resource}/{id}"}, method = {
             RequestMethod.GET, RequestMethod.POST, RequestMethod.PATCH, RequestMethod.DELETE})

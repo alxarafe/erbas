@@ -53,6 +53,11 @@ public final class ResourceMetadata {
         if (definition.presentation() != null) metadata.put("presentation", definition.presentation());
         return metadata;
     }
+    public Map<String, Object> contextPresentation(ResourceDefinition definition) {
+        var identity = identity(definition);
+        return Map.of("id", definition.id(), "definitionHash", identity.get("definitionHash"), "presentation",
+                definition.contextPresentation() == null ? ResourceContextPresentation.EMPTY : definition.contextPresentation());
+    }
     public static String segment(String value) { return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20"); }
     public static String hash(String representation) {
         String canonical = ResourceJson.JSON.writeValueAsString(canonical(ResourceJson.JSON.readTree(representation)));

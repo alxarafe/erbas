@@ -1,9 +1,10 @@
 # Effective application navigation (NAVIGATION-CONTRACT-001)
 
-Java adopts immutable **erbas-contract v0.13.0** alongside the
+Java introduced navigation with immutable **erbas-contract v0.13.0** alongside the
 [Resource Runtime](resources.md). The authoritative
 [protocol](https://github.com/alxarafe/erbas-contract/blob/v0.13.0/docs/core/navigation-001.md)
 defines `GET /api/meta/navigation`, an authenticated request without query parameters.
+Its behavior is unchanged by the [v0.14.0 adoption under review](resources.md).
 It accepts standard Accept-Language and If-None-Match.
 
 Modules register `NavigationContribution.Source` beans. Their immutable

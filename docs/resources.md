@@ -1,12 +1,16 @@
 # Generic Resource Runtime (CRUD-CONTRACT-001)
 
-Java implements the published Git reference **erbas-contract v0.13.0**:
-annotated tag `919684db4f607a575397576b87577cd9582e1f86`, target
-`29bd8de3e5c5772fea5096ab2c60abc6a10e55f7`. Historical preparation wording in
+This checkout targets the published Git reference **erbas-contract v0.14.0**:
+annotated tag `22191afb8ab477fef319093b8c212264f4019816`, target
+`9919ad3725e50d63e7a19befbe0d81b4d91df0cc`. Historical preparation wording in
 the release does not supersede that immutable reference. The normative
 [protocol](https://github.com/alxarafe/erbas-contract/blob/v0.13.0/docs/core/resources-001.md)
 and [OpenAPI](https://github.com/alxarafe/erbas-contract/blob/v0.13.0/openapi/core/resources/contract.yaml)
 remain owned by erbas-contract.
+
+The v0.14.0 adoption is ready for local review only after complete validation.
+Published Java adoption requires publication of the Java commit and successful
+authoritative Java CI; a local pin or test result alone does not establish it.
 
 ## Core protocol and module ownership
 
@@ -125,20 +129,86 @@ this resource nor its navigation contribution.
 Run the sole complete authority with an external clean immutable checkout:
 
 ```bash
-ERBAS_CONTRACT_DIR=/path/to/clean-v0.13.0-checkout ./bin/check
+ERBAS_CONTRACT_DIR=/path/to/clean-v0.14.0-checkout ./bin/check
 ```
 
-The published collection has 617 physical requests / 2655 named checks. Resources
-occupy 591–611 and Navigation 612–617; execution never branches on request numbers.
+The published v0.14.0 collection has 622 physical requests / 2668 named checks.
+It retains Resource Runtime and Navigation and adds contextual presentation;
+execution never branches on request numbers.
 PUT, bulk CRUD, relation expansion, generic SQL, dynamic schemas, workflows,
 record concurrency, Assets and frontend changes remain outside this adoption.
+
+## Contextual presentation (RESOURCE-PRESENTATION-001)
+
+The normative [presentation protocol](https://github.com/alxarafe/erbas-contract/blob/v0.14.0/docs/core/resource-presentation-001.md)
+and [closed OpenAPI schemas](https://github.com/alxarafe/erbas-contract/blob/v0.14.0/openapi/core/resources/presentation.yaml)
+are read from the immutable v0.14.0 tag.
+
+The additive v0.14.0 endpoint is
+`GET /api/meta/resources/{resource}/presentation`, derived by appending
+`/presentation` to a discovered resource's `metadataPath`. Its closed response
+contains only `id`, `definitionHash` and `presentation`. The identity members
+match detailed metadata. Contextual declarations belong to the resource's
+structural definition, so changing them changes the shared `definitionHash`.
+Neither this hash nor the ETag is a record concurrency token.
+
+Modules may supply `ResourceContextPresentation` in their neutral
+`ResourceDefinition`. It is projected separately: the existing closed
+ResourceMetadata and legacy `ResourcePresentation` (`form` only) wire shapes
+remain unchanged. Normal production registration and the conformance-only status
+of `validation.catalogue` are unchanged. A legacy resource returns
+`presentation: {}`; missing declarations never cause a 404 for a known resource.
+
+The four optional contexts are LIST, CREATE, EDIT and VIEW. LIST contains only
+ordered `columns` (`field` plus optional semantic `label`) and `actions`.
+CREATE/EDIT/VIEW directly reuse `ResourcePresentation.Form`, including its
+behavior, actions, tabs, sections and groups, without an extra form wrapper.
+Array order is authoritative. An explicit empty context is retained and differs
+from an absent context. The server publishes declarations, without resolving
+visual fallback: clients use the contextual form, then the legacy form, then
+metadata field order; LIST uses contextual columns, then metadata field order.
+
+Definition construction rejects unknown or repeated field/action references
+within each explicit context. Tab IDs are unique within the form, section IDs
+within their tab, group IDs within their section. Separate containers and
+contexts may reuse IDs; separate contexts may reuse fields and actions. Action
+placement permits COLLECTION for CREATE, ENTITY for EDIT/VIEW, and
+COLLECTION/SELECTION for LIST. Unplaced actions remain functional declarations.
+
+Labels are plain semantic text, not HTML or component instructions. Existing
+UI.Hidden and UI.FormExcluded annotations remain intact and authoritative for
+client display exclusions: Hidden excludes every context; FormExcluded excludes
+CREATE/EDIT/VIEW. Placement never overrides these hints. No client renderer or
+fallback oracle is implemented in Java.
+
+Presentation grants no authority and changes no field semantics, CRUD writes,
+query results, sort/filter/search/pagination, permissions or action availability.
+An immutable field placed in EDIT still cannot be patched. Read-only VIEW is a
+display context and grants no access to records. No tenant, record-state or
+permission-based layout selection is introduced.
+
+The endpoint authenticates the current persisted identity, rejects all query
+parameters, resolves the resource and static representation, computes its ETag,
+then evaluates If-None-Match through the existing cache helper. It requires no
+CRUD permission, adapter or module-enabled/tenant guard. Identical static
+representations may share an ETag across users. Both 200 and bodyless 304 retain
+ETag, `Cache-Control: private, no-cache` and `Vary: Authorization`. Errors reuse
+the existing no-store envelope: 400 invalid_request, 401 unauthorized with Bearer,
+404 resource_not_found or safe 500 resource_execution_failed.
+
+Native declaration tests and HTTP/PostgreSQL tests cover closed shapes, form
+reuse, empty/absent contexts, definition binding, validation, static hints,
+permission independence and conditional caching. The sole complete authority
+remains `./bin/check` against the immutable v0.14.0 checkout.
 
 ## Local verification evidence
 
 On 2026-10-30, from Java base `d09453ff46c2d7f35240c6287c77ac057ee29fdd`,
 focused resource, navigation, architecture and HTTP/PostgreSQL checks passed
 before the single complete validation run `erbas-check-220425-31558-7436`.
-That run used the clean immutable v0.13.0 checkout identified above and ended
+That run used clean immutable v0.13.0 (tag object
+`919684db4f607a575397576b87577cd9582e1f86`, target
+`29bd8de3e5c5772fea5096ab2c60abc6a10e55f7`) and ended
 with `CHECK_EXIT=0`, `CLEANUP_STATUS=passed` and `CLEANUP_EXIT=0`.
 
 - **936 distinct Java tests passed:** 707 native and 229 PostgreSQL integration

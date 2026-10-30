@@ -149,6 +149,45 @@ class ResourceRuntimeIntegrationIT {
         var disabled = checked(call("GET", NavigationController.PATH, admin, null, etag, null), HttpStatus.OK);
         assertThat(disabled.get("items").isEmpty()).isTrue();
     }
+    @Test void legacyContextPresentationIsEmptyAndMatchesClosedFunctionalMetadata() throws Exception {
+        String path = ResourceMetadata.ROOT + "/" + ResourceConformanceConfiguration.RESOURCE;
+        var metadata = checked(call("GET", path, normal, null, null, null), HttpStatus.OK);
+        assertThat(metadata.properties()).extracting(Map.Entry::getKey).containsExactlyInAnyOrder(
+                "id", "version", "moduleId", "definitionHash", "idDefinition", "moduleEnabled", "fields", "operations", "relations", "actions", "annotations");
+        var presentation = checked(call("GET", path + ResourceController.PRESENTATION_SUFFIX, normal, null, null, null), HttpStatus.OK);
+        assertThat(presentation.properties()).extracting(Map.Entry::getKey).containsExactlyInAnyOrder("id", "definitionHash", "presentation");
+        assertThat(presentation.get("id")).isEqualTo(metadata.get("id"));
+        assertThat(presentation.get("definitionHash")).isEqualTo(metadata.get("definitionHash"));
+        assertThat(presentation.get("presentation").isObject()).isTrue(); assertThat(presentation.get("presentation").isEmpty()).isTrue();
+    }
+    @Test void contextualPresentationIsStaticCacheableAndIndependentOfCrudPermissionAndModuleState() throws Exception {
+        String path = ResourceMetadata.ROOT + "/" + MARKERS;
+        var metadata = checked(call("GET", path, normal, null, null, null), HttpStatus.OK);
+        var response = call("GET", path + ResourceController.PRESENTATION_SUFFIX, normal, null, null, null);
+        var body = checked(response, HttpStatus.OK); String etag = response.headers().firstValue(HttpHeaders.ETAG).orElseThrow();
+        assertThat(etag).startsWith("\"").endsWith("\"");
+        assertThat(response.headers().firstValue(HttpHeaders.CACHE_CONTROL)).contains("private, no-cache");
+        assertThat(response.headers().allValues(HttpHeaders.VARY)).containsExactly(HttpHeaders.AUTHORIZATION);
+        assertThat(body.get("definitionHash")).isEqualTo(metadata.get("definitionHash"));
+        assertThat(body.get("presentation").get("list").get("columns").get(0).get("field").asString()).isEqualTo("id");
+        assertThat(body.get("presentation").get("view")).isEqualTo(metadata.get("presentation").get("form"));
+        assertThat(metadata.get("presentation").properties()).extracting(Map.Entry::getKey).containsExactly("form");
+        checked(call("GET", ResourceController.RECORDS + "/" + MARKERS, normal, null, null, null), HttpStatus.FORBIDDEN);
+        checked(call("GET", path + ResourceController.PRESENTATION_SUFFIX, normal, null, etag, null), HttpStatus.NOT_MODIFIED);
+        // Static declarations do not acquire a per-subject identity requirement.
+        checked(call("GET", path + ResourceController.PRESENTATION_SUFFIX, admin, null, etag, null), HttpStatus.NOT_MODIFIED);
+        modules.disable(TEST_MODULE);
+        try {
+            var disabled = checked(call("GET", path + ResourceController.PRESENTATION_SUFFIX, normal, null, null, null), HttpStatus.OK);
+            assertThat(disabled).isEqualTo(body);
+        } finally { modules.enable(TEST_MODULE); }
+    }
+    @Test void presentationHttpErrorsRespectAuthenticationQueryLookupAndSafeEnvelope() throws Exception {
+        String path = ResourceMetadata.ROOT + "/" + MARKERS + ResourceController.PRESENTATION_SUFFIX;
+        checked(call("GET", path, null, null, "*", null), HttpStatus.UNAUTHORIZED);
+        checked(call("GET", path + "?unknown=1", normal, null, "*", null), HttpStatus.BAD_REQUEST);
+        checked(call("GET", ResourceMetadata.ROOT + "/missing" + ResourceController.PRESENTATION_SUFFIX, normal, null, "*", null), HttpStatus.NOT_FOUND);
+    }
     private String login(String email) throws Exception {
         return checked(call("POST", "/api/auth/login", null, ResourceJson.JSON.writeValueAsString(Map.of("email", email, "password", PASSWORD)), null, null), HttpStatus.OK)
                 .get("accessToken").asString();
@@ -186,8 +225,14 @@ class ResourceRuntimeIntegrationIT {
         @Bean ResourceRegistry.Source markerSource() {
             var id = new FieldDefinition("id", ScalarType.INT32, false, true, true, true, null, FieldDefinition.Constraints.NONE,
                     new FieldDefinition.Capabilities(true, true, false), List.of(), List.of());
-            return () -> List.of(new ResourceDefinition(MARKERS, "1.0.0", TEST_MODULE, "id", List.of(id),
-                    Map.of(ResourceOperation.list, MARKER_PERMISSION, ResourceOperation.get, MARKER_PERMISSION), List.of(), List.of(), List.of(), null));
+            var form = new ResourcePresentation.Form(new ResourcePresentation.Behavior(ResourcePresentation.UnsavedChanges.CONFIRM_DISCARD), List.of(),
+                    List.of(new ResourcePresentation.Tab("main", null, List.of(), List.of(new ResourcePresentation.Section("main", null, false, false, List.of(),
+                            List.of(new ResourcePresentation.Group("main", null, List.of(id.name()))))))));
+            var contextual = new ResourceContextPresentation(new ResourceContextPresentation.ListPresentation(
+                    List.of(new ResourceContextPresentation.Column(id.name(), null)), List.of()), null, null, form);
+            return () -> List.of(new ResourceDefinition(MARKERS, "1.0.0", TEST_MODULE, id.name(), List.of(id),
+                    Map.of(ResourceOperation.list, MARKER_PERMISSION, ResourceOperation.get, MARKER_PERMISSION), List.of(), List.of(), List.of(),
+                    new ResourcePresentation(form), contextual));
         }
         @Bean FunctionalPermissionPolicy markerPermission() { return (user, permission) -> user.admin() && MARKER_PERMISSION.equals(permission); }
         @Bean ResourceExecutionAdapter markerAdapter(JdbcTemplate jdbc) {

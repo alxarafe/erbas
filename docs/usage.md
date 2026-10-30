@@ -189,7 +189,7 @@ Each protected request resolves current `id`, `email`, `enabled` and `admin`
 from PostgreSQL. Disabling a user rejects existing bearers without deleting
 tokens; admin changes update the Spring Security principal and `ADMIN` authority
 on the next request. Java implements USERS-001 and COLLECTIONS-001 against the
-pinned published release `v0.13.0`.
+pinned published release `v0.14.0`.
 
 ### Basic user administration
 
@@ -380,9 +380,9 @@ ERBAS_CONTRACT_DIR=/path/to/checkout/erbas-contract \
 
 `bin/check` is the sole complete validation entry point. Supply the root of
 `alxarafe/erbas-contract` at the published release in `contract.revision`,
-currently `v0.13.0`. The local `refs/tags/v0.13.0^{commit}` and checkout HEAD must
-both resolve to `29bd8de3e5c5772fea5096ab2c60abc6a10e55f7`. The annotated tag
-object must be `919684db4f607a575397576b87577cd9582e1f86`. Repository root,
+currently `v0.14.0`. The local `refs/tags/v0.14.0^{commit}` and checkout HEAD must
+both resolve to `9919ad3725e50d63e7a19befbe0d81b4d91df0cc`. The annotated tag
+object must be `22191afb8ab477fef319093b8c212264f4019816`. Repository root,
 GitHub origin, tag resolution, HEAD and cleanliness are checked before resources
 are created and immediately before each contract call. Missing tags, unexpected
 tag targets, wrong HEAD, staged/unstaged tracked changes and nonignored untracked
@@ -392,11 +392,11 @@ unpublished-release opt-in. The caller supplies the checkout; Java only verifies
 For example, prepare a separate checkout with Git:
 
 ```bash
-git clone --branch v0.13.0 https://github.com/alxarafe/erbas-contract.git /path/to/checkout/erbas-contract
+git clone --branch v0.14.0 https://github.com/alxarafe/erbas-contract.git /path/to/checkout/erbas-contract
 ```
 
 GitHub Actions checks out Java into `erbas/` and `alxarafe/erbas-contract` at
-`ref: v0.13.0` into the sibling `erbas-contract/`. It runs `./bin/check` from
+`ref: v0.14.0` into the sibling `erbas-contract/`. It runs `./bin/check` from
 `erbas/` with `ERBAS_CONTRACT_DIR` pointing to that sibling. Contract files are
 outside Java's working tree and Docker build context. The workflow uses read-only
 repository permissions and does not persist checkout credentials. No host Java,
@@ -448,7 +448,7 @@ script then invokes the existing contract interface with its generated network:
 
 This illustrates the internal call, not another complete validation entry point.
 The sole shared collection is invoked with PostgreSQL available, without skips.
-The pinned published v0.13.0 contains 617 request definitions and 2655 named checks,
+The pinned published v0.14.0 contains 622 request definitions and 2668 named checks,
 including AI-001, CORE-CAP-001 discovery, CORE-CAP-002 READ invocation, USERS-001, COLLECTIONS-001, CONTRACT-003 module administration and
 CONTRACT-003A canonical development descriptors, plus WMS UoM, Storage Attributes and WMS-003 (228 new requests/1140 checks). It requires disposable isolated
 validation data, creates unique
@@ -531,5 +531,5 @@ ERBAS_CONTRACT_DIR=/path/to/checkout/erbas-contract \
 ```
 
 GitHub Actions invokes the same authoritative `./bin/check` against published
-`v0.13.0`, including mandatory shared Bruno conformance.
+`v0.14.0`, including mandatory shared Bruno conformance.
 Local success does not authorize publication or deployment.

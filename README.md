@@ -82,8 +82,9 @@ No host Java, Maven or Bruno is needed. See [usage](docs/usage.md).
 
 ## Status and documentation
 
-Java implements the published ERBAS Contract `v0.13.0`, recorded in
-[contract.revision](contract.revision). The supplied checkout must be clean and
+This checkout targets published ERBAS Contract `v0.14.0`, recorded in
+[contract.revision](contract.revision); Java adoption requires publication and
+successful authoritative CI. The supplied checkout must be clean and
 its release tag and HEAD must resolve to the expected immutable commit.
 `./bin/check` is authoritative locally and in GitHub Actions, where shared Bruno
 conformance against the same published release is mandatory. The CI badge
