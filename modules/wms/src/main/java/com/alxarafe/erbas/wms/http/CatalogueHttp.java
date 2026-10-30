@@ -20,10 +20,10 @@ import tools.jackson.databind.json.JsonMapper;
 
 /** Strict request and response mechanics shared by the WMS catalogue adapters. */
 final class CatalogueHttp {
-    static final String CODE_FIELD = "code";
+    static final String CODE_FIELD = com.alxarafe.erbas.wms.infrastructure.WmsListInvocation.CODE_FIELD;
     static final String INVALID_REQUEST = "invalid_request";
     static final List<PagedCollection.Order> CODE_ASCENDING =
-            List.of(new PagedCollection.Order(CODE_FIELD, "asc"));
+            com.alxarafe.erbas.wms.infrastructure.WmsListInvocation.CODE_ASCENDING;
     private static final String OFFSET_QUERY = "offset";
     private static final String LIMIT_QUERY = "limit";
     // Same strict tree strategy as Users, without changing that existing boundary.

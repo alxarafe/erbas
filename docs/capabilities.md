@@ -1,12 +1,12 @@
-# Effective capability discovery (CORE-CAP-001)
+# Effective capability discovery and READ invocation (CORE-CAP-001/002)
 
-Java formally adopts published immutable **erbas-contract v0.9.0**:
+Java formally adopts published immutable **erbas-contract v0.10.0**:
 
-- Annotated tag object: `adcfad11c6fe51cb54a92a93f9c1e99a13fb7dc8`.
-- Target commit: `138e2381e1010e994a0f9d6306af6f9d420658e5`.
-- Normative [design](https://github.com/alxarafe/erbas-contract/blob/v0.9.0/docs/core/capabilities-001.md),
-  [OpenAPI](https://github.com/alxarafe/erbas-contract/blob/v0.9.0/openapi/core/capabilities/contract.yaml)
-  and [WMS declarations](https://github.com/alxarafe/erbas-contract/blob/v0.9.0/openapi/modules/wms/capabilities.json).
+- Annotated tag object: `a55a8d25beef5c24bc9cdce956a2eb2b14f41fb3`.
+- Target commit: `1b7b182374ad432637dd41f46b94b4004470eba0`.
+- Normative [design](https://github.com/alxarafe/erbas-contract/blob/v0.10.0/docs/core/capabilities-002.md),
+  [OpenAPI](https://github.com/alxarafe/erbas-contract/blob/v0.10.0/openapi/core/capabilities/contract.yaml)
+  and [WMS declarations](https://github.com/alxarafe/erbas-contract/blob/v0.10.0/openapi/modules/wms/capabilities.json).
 
 The tagged preparation documentation retains its historical pre-publication
 wording; the published annotated tag is immutable. This adoption preserves all
@@ -90,7 +90,7 @@ migration to a different runtime is involved.
 Run the normal complete check with an explicit clean published checkout:
 
 ```bash
-ERBAS_CONTRACT_DIR=/path/to/clean-v0.9.0-checkout ./bin/check
+ERBAS_CONTRACT_DIR=/path/to/clean-v0.10.0-checkout ./bin/check
 ```
 
 The same immutable release is selected by CI. Native tests cover descriptor
@@ -99,7 +99,7 @@ all-permission filtering, stable ordering, missing/disabled modules and exact WM
 declarations. Real HTTP/PostgreSQL integration covers closed descriptors,
 pagination and authentication precedence, ordinary users, current demotion and
 real module PATCH disable/restore. Full shared conformance preserves v0.8.0 and
-adds CORE-CAP-001. The release inventory is 522 requests/2315 named checks; these
+adds CORE-CAP-001/002. The release inventory is 560 requests/2467 named checks; these
 are distinct from Java native/integration test counts. Normal cleanup, migration,
 architecture and sensitive-log checks remain mandatory.
 
@@ -111,8 +111,90 @@ database-down liveness, sensitive-log checks and disposable infrastructure
 cleanup all passed (`CHECK_EXIT=0`). This is local verification, not a claim
 about a CI run for the unpushed commit.
 
-**Capability execution is explicitly outside v0.9.0 and this implementation.**
-There is no invoker/executor, invocation endpoint, handler binding, execution
-audit/context, Assistant, tool calling, READ primitive, tenant, DataScope,
-Resource Runtime, navigation or Assets feature. Discovery describes existing
-operations; capability IDs are not executable URLs.
+## READ invocation (CORE-CAP-002)
+
+`POST /api/core/capabilities/{capabilityId}/invocations` accepts exactly
+`{"input":{}}`, with optional numeric integer `offset` and `limit` inside input.
+Defaults and bounds reuse `PagedCollection`: offset 0, limit 50, maximum 100.
+Both objects are closed. Duplicate keys, trailing JSON, missing/null/non-object
+input, caller security fields and invalid pagination return `400 invalid_request`.
+Integral JSON numbers such as `1.0` retain integer semantics; fractions do not.
+
+Spring bearer authentication runs first, without an administrator route guard.
+CORE validates ID syntax, calls the same `CapabilityDiscovery.findEffective`
+policy as discovery, and reevaluates current module availability and permissions.
+Only then does a deferred body supplier read and strictly parse JSON. Normal users,
+unknown capabilities and unavailable/disabled providers receive the identical
+`404 capability_not_found`, even for malformed bodies. Missing/invalid/expired or
+disabled-user authentication remains `401 unauthorized`, before ID/body checks.
+Discovery never grants lasting authorization. Existing direct WMS disabled-module
+behavior remains `503 module_disabled`.
+
+Descriptors remain immutable metadata with no executable fields. Spring explicitly
+composes three provider-owned `WmsListInvocation` beans. CORE's
+`CapabilityInvocationRegistry` rejects duplicate handlers, missing READ handlers,
+unknown descriptors, mismatched ownership and non-READ bindings at startup.
+The WMS beans call `UomCatalogue`, `StorageAttributeCatalogue` and
+`ItemFamilyCatalogue` directly, then their stores and PostgreSQL; no controllers
+or HTTP loopback participate. They reuse `PagedCollection` and the direct routes'
+code-ascending order. All v0.9 descriptor fields, versions and schema refs remain
+unchanged. No WMS business or pagination algorithm is duplicated.
+
+CORE generates a fresh opaque invocation ID using UUID internally. Its trusted
+`CapabilityInvocationContext` contains that ID, the authenticated subject, exact
+capability ID, resolved owning module, effective granted permissions and
+`caller=user`. Correlation is unavailable (null); no public correlation header or
+client context is introduced. Only a successful closed envelope exposes
+`invocationId`, `capabilityId` and `output`; identifier format is not contractual.
+
+The provider validates descriptor input and exposes a generic output-validation
+hook. WMS requires final validated domain records, a complete page matching the
+requested pagination, nonnegative total, unique ascending codes and contractual
+order. CORE rejects known invalid output, null/non-object output, provider exceptions
+and serialization failures with exactly `500 capability_execution_failed` and
+one matching error detail. Exceptions and internal invocation IDs never enter
+error responses. Every response is JSON/no-store; only 401 has a Bearer challenge.
+
+`CapabilityInvocationAuditSink` receives an entry for completed, denied and failed
+attempts, including authentication rejection. Its default implementation logs only
+the internal ID, available capability/module/subject, timestamp, duration, outcome
+and safe error code. Correlation and unresolved/hidden metadata remain unavailable;
+audit does not look up hidden metadata. Invalid IDs are omitted from audit.
+The audit type has no payload, credentials, token, SQL or exception fields. No audit
+API, persistence table or migration is added.
+
+Execution is READ-only. WRITE invocation, Assistant, AI providers, tool selection,
+READ primitives, persisted functional permissions, tenant, DataScope, Resource
+Runtime, navigation and Assets remain outside this implementation.
+
+## CORE-CAP-002 local verification
+
+On 2026-10-30, from Java base `578ff2a2e7646035a93b0fb6160ca73489f5afd9`,
+the complete command below passed with `CHECK_EXIT=0` (run
+`erbas-check-44069-19557-2572`):
+
+```bash
+ERBAS_CONTRACT_DIR=/home/rsanjose/Desarrollo/Alxarafe/erbas-contract-v0.10.0 ./bin/check
+```
+
+There were **650 distinct Java tests**: 465 native and 185 real PostgreSQL
+integration cases, 77 more than the 573-case baseline. Independent CORE validation
+also passed (328 cases, not counted twice). Native coverage includes registration,
+trusted context, generated IDs, reauthorization, strict parsing, safe provider/output
+failures and all audit outcomes. HTTP/PostgreSQL coverage compares all three WMS
+outputs with their direct GET results for defaults and offset=1/limit=1, and checks
+authentication precedence, masked malformed requests, persisted user demotion and
+module disable/restore without restart. The former assertion that no invocation
+endpoint exists is replaced with the now-approved execution/equivalence test.
+
+Published v0.10.0 shared live conformance passed separately from the Java cases.
+The official read-only inventory test independently measured **560 requests /
+2467 named checks**, including inherited folder checks; it passed with no skips.
+Final image, fresh migrations, post-conformance database invariants, database-down
+liveness, Actuator behavior, sensitive-log checks and exact-owned ephemeral
+container/network/volume cleanup all passed. No migrations or dependencies were
+added. The initial full attempt exposed an isolated MVC security-composition
+dependency; it was corrected and CORE plus the complete check were rerun successfully.
+Existing Mockito dynamic-agent, deprecated-test-API and optional Maven metadata
+HTTP 401 warnings remain non-fatal; dependency resolution and all validations passed.
+This is local evidence; remote CI, publication and deployment are separate.

@@ -9,6 +9,7 @@ import java.util.Map;
 import com.alxarafe.erbas.auth.infrastructure.JdbcAuthenticationStore;
 import com.alxarafe.erbas.capabilities.Capability;
 import com.alxarafe.erbas.capabilities.http.CapabilityController;
+import com.alxarafe.erbas.capabilities.http.CapabilityInvocationController;
 import com.alxarafe.erbas.modularity.http.ModuleController;
 import com.alxarafe.erbas.wms.WmsModule;
 import com.alxarafe.erbas.wms.WmsCapabilities;
@@ -140,9 +141,94 @@ class CapabilityDiscoveryIT {
                     .isEqualTo(error(CapabilityController.NOT_FOUND));
         } finally { jdbc.update("UPDATE auth_user SET admin = true WHERE id = ?", adminId); }
     }
-    @Test void noCapabilityInvocationEndpointWasIntroduced() throws Exception {
-        assertThat(call("POST", PATH + "/" + declarations.getFirst().id() + "/invocations", admin, "{}").statusCode())
-                .isEqualTo(HttpStatus.NOT_FOUND.value());
+    @Test void allThreeRealPostgresHandlersEqualDirectGetForDefaultsAndWindow() throws Exception {
+        var invocationIds = new java.util.HashSet<String>();
+        for (String resource : List.of("uoms", "storage-attributes", "item-families")) {
+            String direct = "/api/wms/" + resource;
+            String textField = resource.equals("uoms") ? "description" : "name";
+            String table = switch (resource) {
+                case "uoms" -> "wms_uoms";
+                case "storage-attributes" -> "wms_storage_attributes";
+                default -> "wms_item_families";
+            };
+            var owned = new java.util.ArrayList<java.util.UUID>();
+            try {
+                for (String code : List.of("IVTESTA", "IVTESTB", "IVTESTC")) {
+                    var item = checked(call("POST", direct, admin, json.writeValueAsString(Map.of("code", code,
+                            textField, "Invocation fixture"))), HttpStatus.CREATED);
+                    owned.add(java.util.UUID.fromString(item.get("id").asString()));
+                }
+                for (String input : List.of("{}", "{\"offset\":1,\"limit\":1}")) {
+                    String id = "wms." + resource + ".list";
+                    var response = checked(invoke(id, admin, "{\"input\":" + input + "}"), HttpStatus.OK);
+                    assertThat(response.properties()).extracting(Map.Entry::getKey)
+                            .containsExactlyInAnyOrder("invocationId", "capabilityId", "output");
+                    assertThat(response.get("capabilityId").asString()).isEqualTo(id);
+                    assertThat(response.get("invocationId").asString()).isNotBlank();
+                    assertThat(invocationIds.add(response.get("invocationId").asString())).isTrue();
+                    var expected = checked(get(direct + (input.equals("{}") ? "" : "?offset=1&limit=1"), admin), HttpStatus.OK);
+                    assertThat(response.get("output")).isEqualTo(expected);
+                    assertThat(expected.get("total").asLong()).isGreaterThanOrEqualTo(owned.size());
+                }
+            } finally {
+                for (var id : owned) jdbc.update("DELETE FROM " + table + " WHERE id = ?", id);
+            }
+        }
+    }
+    @ParameterizedTest
+    @ValueSource(strings = {"{\"input\":{}}", "{\"input\":{\"limit\":0}}", "{"})
+    void normalUserNeverReachesInputValidation(String body) throws Exception {
+        assertThat(checked(invoke(WmsCapabilities.UOMS_LIST, normal, body), HttpStatus.NOT_FOUND))
+                .isEqualTo(error(CapabilityController.NOT_FOUND));
+    }
+    @ParameterizedTest
+    @ValueSource(strings = {"", "{", "{}", "null", "[]", "1", "true", "\"text\"", "{\"input\":null}",
+            "{\"input\":[]}", "{\"input\":\"text\"}", "{\"input\":1}", "{\"input\":{},\"caller\":\"user\"}",
+            "{\"input\":{\"unknown\":1}}", "{\"input\":{\"permissions\":[]}}", "{\"input\":{},\"input\":{}}",
+            "{\"input\":{\"offset\":0,\"offset\":1}}", "{\"input\":{}} {}", "{\"input\":{\"offset\":null}}",
+            "{\"input\":{\"offset\":-1}}", "{\"input\":{\"limit\":0}}", "{\"input\":{\"limit\":101}}",
+            "{\"input\":{\"offset\":\"1\"}}", "{\"input\":{\"limit\":true}}", "{\"input\":{\"offset\":1.1}}",
+            "{\"input\":{\"limit\":1.5}}"})
+    void authorizedInvocationStrictlyRejectsInvalidBody(String body) throws Exception {
+        assertThat(checked(invoke(WmsCapabilities.UOMS_LIST, admin, body), HttpStatus.BAD_REQUEST))
+                .isEqualTo(error(CapabilityController.INVALID_REQUEST));
+    }
+    @Test void invocationAuthenticationPrecedesInvalidIdAndMalformedJson() throws Exception {
+        for (String token : new String[] {null, "invalid-token"}) {
+            assertThat(checked(invoke("INVALID", token, "{"), HttpStatus.UNAUTHORIZED)).isEqualTo(error("unauthorized"));
+        }
+        jdbc.update("UPDATE auth_user SET enabled = false WHERE id = ?", normalId);
+        try { checked(invoke("INVALID", normal, "{"), HttpStatus.UNAUTHORIZED); }
+        finally { jdbc.update("UPDATE auth_user SET enabled = true WHERE id = ?", normalId); }
+        jdbc.update("UPDATE auth_access_token SET created_at = now() - interval '2 hours', expires_at = now() - interval '1 hour' WHERE user_id = ?", normalId);
+        try { checked(invoke("INVALID", normal, "{"), HttpStatus.UNAUTHORIZED); }
+        finally { jdbc.update("UPDATE auth_access_token SET expires_at = now() + interval '1 hour' WHERE user_id = ?", normalId); }
+        assertThat(checked(invoke("INVALID", admin, "{"), HttpStatus.BAD_REQUEST)).isEqualTo(error(CapabilityController.INVALID_REQUEST));
+        assertThat(checked(invoke("unknown.resource.read", admin, "{"), HttpStatus.NOT_FOUND))
+                .isEqualTo(error(CapabilityController.NOT_FOUND));
+    }
+    @Test void invocationRechecksDisabledModuleAndDemotedUserWithoutRestart() throws Exception {
+        checked(get(PATH + "/" + WmsCapabilities.UOMS_LIST, admin), HttpStatus.OK);
+        checked(invoke(WmsCapabilities.UOMS_LIST, admin, "{\"input\":{}}"), HttpStatus.OK);
+        String modulePath = ModuleController.MODULES_PATH + "/" + WmsModule.ID;
+        checked(call("PATCH", modulePath, admin, "{\"enabled\":false}"), HttpStatus.OK);
+        try {
+            for (String body : List.of("{\"input\":{}}", "{")) {
+                assertThat(checked(invoke(WmsCapabilities.UOMS_LIST, admin, body), HttpStatus.NOT_FOUND))
+                        .isEqualTo(error(CapabilityController.NOT_FOUND));
+            }
+            checked(get("/api/wms/uoms", admin), HttpStatus.SERVICE_UNAVAILABLE);
+        } finally { checked(call("PATCH", modulePath, admin, "{\"enabled\":true}"), HttpStatus.OK); }
+        checked(invoke(WmsCapabilities.UOMS_LIST, admin, "{\"input\":{}}"), HttpStatus.OK);
+        jdbc.update("UPDATE auth_user SET admin = false WHERE id = ?", adminId);
+        try {
+            assertThat(checked(invoke(WmsCapabilities.UOMS_LIST, admin, "{"), HttpStatus.NOT_FOUND))
+                    .isEqualTo(error(CapabilityController.NOT_FOUND));
+        } finally { jdbc.update("UPDATE auth_user SET admin = true WHERE id = ?", adminId); }
+        checked(invoke(WmsCapabilities.UOMS_LIST, admin, "{\"input\":{}}"), HttpStatus.OK);
+    }
+    private HttpResponse<String> invoke(String id, String token, String body) throws Exception {
+        return call("POST", PATH + "/" + id + CapabilityInvocationController.SUFFIX, token, body);
     }
     private void assertUnauthorizedEverywhere(String token) throws Exception {
         for (String path : List.of(PATH, PATH + "?limit=0", PATH + "/INVALID", PATH + "/INVALID?unknown=1")) {

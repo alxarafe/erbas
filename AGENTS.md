@@ -273,11 +273,11 @@ change it unilaterally or duplicate the collection. Never add implementation
 branches to the shared contract.
 
 Declare the implemented published release in `contract.revision`, currently
-`v0.9.0`. Require an explicit contract directory. Verify repository root, GitHub
+`v0.10.0`. Require an explicit contract directory. Verify repository root, GitHub
 origin, tracked/nonignored cleanliness, the release tag's immutable commit
-(`138e2381e1010e994a0f9d6306af6f9d420658e5` for `v0.9.0`) and matching HEAD
+(`1b7b182374ad432637dd41f46b94b4004470eba0` for `v0.10.0`) and matching HEAD
 before provisioning and every shared test call. The annotated tag object must
-be `adcfad11c6fe51cb54a92a93f9c1e99a13fb7dc8`. No unpublished-checkout opt-in
+be `a55a8d25beef5c24bc9cdce956a2eb2b14f41fb3`. No unpublished-checkout opt-in
 is required. Allow ignored files and preserve them. Never fetch, pull, checkout
 or modify the supplied contract repository.
 
@@ -289,7 +289,7 @@ controls belong only to host verification, never production application behavior
 
 Failed conformance must block publication/deployment. GitHub Java CI invokes
 the same `./bin/check` authority with a separate `alxarafe/erbas-contract` checkout
-at the published `v0.9.0` tag. Shared conformance and cleanup are mandatory.
+at the published `v0.10.0` tag. Shared conformance and cleanup are mandatory.
 Task approval authorizes its final local commit under the lifecycle rules above.
 Do not push, create PRs, merge, tag, release, publish or deploy without separate
 express authorization. Preserve unrelated changes and resources.

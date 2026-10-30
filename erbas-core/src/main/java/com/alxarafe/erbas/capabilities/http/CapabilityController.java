@@ -20,8 +20,8 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 public class CapabilityController {
     public static final String PATH = "/api/core/capabilities";
-    public static final String INVALID_REQUEST = "invalid_request";
-    public static final String NOT_FOUND = "capability_not_found";
+    public static final String INVALID_REQUEST = com.alxarafe.erbas.capabilities.CapabilityInvocation.INVALID_REQUEST;
+    public static final String NOT_FOUND = com.alxarafe.erbas.capabilities.CapabilityInvocation.NOT_FOUND;
     private static final String OFFSET = "offset";
     private static final String LIMIT = "limit";
     private static final Set<String> QUERY_KEYS = Set.of(OFFSET, LIMIT);
@@ -45,7 +45,7 @@ public class CapabilityController {
     public ResponseEntity<?> get(@AuthenticationPrincipal UserIdentity user, @PathVariable String capabilityId,
             @RequestParam MultiValueMap<String, String> query) {
         if (!query.isEmpty() || !Capability.validId(capabilityId)) return error(HttpStatus.BAD_REQUEST, INVALID_REQUEST);
-        return discovery.effective(user).stream().filter(capability -> capability.id().equals(capabilityId)).findFirst()
+        return discovery.findEffective(user, capabilityId)
                 .map(capability -> json(HttpStatus.OK, capability)).orElseGet(() -> error(HttpStatus.NOT_FOUND, NOT_FOUND));
     }
     private static ResponseEntity<Object> error(HttpStatus status, String code) { return json(status, ContractError.of(code)); }

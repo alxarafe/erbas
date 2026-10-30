@@ -12,17 +12,20 @@ public final class WmsCapabilities implements CapabilityProvider, CapabilityPerm
     public static final String UOMS_READ = "wms.uoms.read";
     public static final String STORAGE_ATTRIBUTES_READ = "wms.storage-attributes.read";
     public static final String ITEM_FAMILIES_READ = "wms.item-families.read";
+    public static final String UOMS_LIST = "wms.uoms.list";
+    public static final String STORAGE_ATTRIBUTES_LIST = "wms.storage-attributes.list";
+    public static final String ITEM_FAMILIES_LIST = "wms.item-families.list";
     private static final Set<String> PERMISSIONS = Set.of(UOMS_READ, STORAGE_ATTRIBUTES_READ, ITEM_FAMILIES_READ);
     private static final String VERSION = "1.0.0";
     private static final Capability.SchemaReference INPUT = reference("CapabilityListInput");
     private static final List<Capability> DECLARATIONS = List.of(
-            new Capability("wms.uoms.list", WmsModule.ID, VERSION, "List units of measure",
+            new Capability(UOMS_LIST, WmsModule.ID, VERSION, "List units of measure",
                     "GET /api/wms/uoms with optional offset and limit; returns the existing paged catalogue.",
                     Capability.READ, INPUT, reference("WmsUomCollection"), List.of(UOMS_READ)),
-            new Capability("wms.storage-attributes.list", WmsModule.ID, VERSION, "List storage attributes",
+            new Capability(STORAGE_ATTRIBUTES_LIST, WmsModule.ID, VERSION, "List storage attributes",
                     "GET /api/wms/storage-attributes with optional offset and limit; returns the existing paged catalogue.",
                     Capability.READ, INPUT, reference("WmsStorageAttributeCollection"), List.of(STORAGE_ATTRIBUTES_READ)),
-            new Capability("wms.item-families.list", WmsModule.ID, VERSION, "List item families",
+            new Capability(ITEM_FAMILIES_LIST, WmsModule.ID, VERSION, "List item families",
                     "GET /api/wms/item-families with optional offset and limit; returns the existing paged catalogue.",
                     Capability.READ, INPUT, reference("WmsItemFamilyCollection"), List.of(ITEM_FAMILIES_READ)));
     @Override public List<Capability> capabilities() { return DECLARATIONS; }

@@ -2,6 +2,9 @@ package com.alxarafe.erbas.wms.infrastructure;
 
 import com.alxarafe.erbas.wms.WmsModule;
 import com.alxarafe.erbas.wms.WmsCapabilities;
+import com.alxarafe.erbas.wms.domain.Uom;
+import com.alxarafe.erbas.wms.domain.StorageAttribute;
+import com.alxarafe.erbas.wms.domain.ItemFamily;
 import com.alxarafe.erbas.wms.application.FamilyAssociations;
 import com.alxarafe.erbas.wms.application.ItemFamilyCatalogue;
 import com.alxarafe.erbas.wms.http.ItemFamilyController;
@@ -24,6 +27,24 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 @Configuration(proxyBeanMethods = false)
 @Import({UomController.class, StorageAttributeController.class, ItemFamilyController.class, FamilyAssociationController.class, CatalogueExceptionHandler.class})
 public class WmsConfiguration {
+    @Bean public WmsListInvocation<Uom> uomInvocation(UomCatalogue catalogue) {
+        return new WmsListInvocation<>(WmsCapabilities.UOMS_LIST, Uom.class, Uom::code, pagination -> {
+                    var window = catalogue.list(pagination.offset(), pagination.limit());
+                    return WmsListInvocation.page(window.items(), window.total(), pagination);
+                });
+    }
+    @Bean public WmsListInvocation<StorageAttribute> storageAttributeInvocation(StorageAttributeCatalogue catalogue) {
+        return new WmsListInvocation<>(WmsCapabilities.STORAGE_ATTRIBUTES_LIST, StorageAttribute.class, StorageAttribute::code, pagination -> {
+                    var window = catalogue.list(pagination.offset(), pagination.limit());
+                    return WmsListInvocation.page(window.items(), window.total(), pagination);
+                });
+    }
+    @Bean public WmsListInvocation<ItemFamily> itemFamilyInvocation(ItemFamilyCatalogue catalogue) {
+        return new WmsListInvocation<>(WmsCapabilities.ITEM_FAMILIES_LIST, ItemFamily.class, ItemFamily::code, pagination -> {
+                    var window = catalogue.list(pagination.offset(), pagination.limit());
+                    return WmsListInvocation.page(window.items(), window.total(), pagination);
+                });
+    }
     @Bean public WmsModule wmsModule() { return new WmsModule(); }
     @Bean public WmsCapabilities wmsCapabilities() { return new WmsCapabilities(); }
     @Bean public JdbcUomStore uomStore(JdbcTemplate jdbc) { return new JdbcUomStore(jdbc); }

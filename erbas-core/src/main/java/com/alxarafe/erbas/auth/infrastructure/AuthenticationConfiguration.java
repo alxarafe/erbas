@@ -79,6 +79,7 @@ public class AuthenticationConfiguration {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationManager bearerAuthenticationManager,
+            org.springframework.beans.factory.ObjectProvider<com.alxarafe.erbas.capabilities.CapabilityInvocation> invocation,
             List<Customizer<AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry>> endpointAuthorizations)
             throws Exception {
         var paths = PathPatternRequestMatcher.withDefaults();
@@ -107,6 +108,12 @@ public class AuthenticationConfiguration {
                     authorize.anyRequest().authenticated();
                 })
                 .exceptionHandling(errors -> errors.authenticationEntryPoint((request, response, failure) -> {
+                    var invocationPath = paths.matcher(HttpMethod.POST,
+                            com.alxarafe.erbas.capabilities.http.CapabilityInvocationController.PATH);
+                    if (invocationPath.matches(request)) {
+                        var id = invocationPath.matcher(request).getVariables().get("capabilityId");
+                        invocation.getObject().invoke(null, id, () -> { throw new IllegalStateException("Unauthenticated body access"); });
+                    }
                     response.setStatus(401);
                     response.setHeader("WWW-Authenticate", "Bearer");
                     response.setHeader("Cache-Control", "no-store");

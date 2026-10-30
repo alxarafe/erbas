@@ -1,3 +1,6 @@
+CapabilityInvocationRequest
+CapabilityInvocation
+CapabilityExecutionFailed
 CapabilityListInput
 CapabilityId
 CapabilitySchemaReference

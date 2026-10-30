@@ -1,6 +1,7 @@
 package com.alxarafe.erbas.capabilities;
 
 import java.util.List;
+import java.util.Optional;
 import com.alxarafe.erbas.auth.application.UserIdentity;
 import com.alxarafe.erbas.modularity.ModuleStateService;
 import com.alxarafe.erbas.modularity.ModuleUnavailableException;
@@ -21,6 +22,14 @@ public final class CapabilityDiscovery {
                 .filter(capability -> capability.requiredPermissions().stream().allMatch(permission ->
                         policies.stream().anyMatch(policy -> policy.granted(user, permission))))
                 .toList();
+    }
+    public Optional<Capability> findEffective(UserIdentity user, String id) {
+        return effective(user).stream().filter(capability -> capability.id().equals(id)).findFirst();
+    }
+    public List<String> effectivePermissions(UserIdentity user) {
+        return registry.capabilities().stream().flatMap(capability -> capability.requiredPermissions().stream())
+                .distinct().sorted().filter(permission -> user != null && user.enabled()
+                        && policies.stream().anyMatch(policy -> policy.granted(user, permission))).toList();
     }
     private boolean enabled(String module) {
         try { return states.isEnabled(module); }
