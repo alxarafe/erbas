@@ -17,6 +17,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ErbasApplicationTests {
     @Autowired private ModuleRegistry modules;
     @Autowired private com.alxarafe.erbas.read.ReadPrimitiveRegistry primitives;
+    @Autowired private com.alxarafe.erbas.resources.ResourceRegistry resources;
+    @Autowired private com.alxarafe.erbas.navigation.NavigationRegistry navigation;
     // This native context test has no database; real state synchronization is covered by ITs.
     @MockitoBean private ModuleStateService states;
 
@@ -24,5 +26,7 @@ class ErbasApplicationTests {
     void applicationContextLoads() {
         assertThat(modules.modules().stream().map(module -> module.descriptor().id())).containsExactly(AiModule.ID, WmsModule.ID);
         assertThat(primitives.primitives()).isEmpty();
+        assertThat(resources.definitions()).isEmpty();
+        assertThat(navigation.contributions()).isEmpty();
     }
 }

@@ -1,7 +1,7 @@
 # Effective capability discovery and READ invocation (CORE-CAP-001/002)
 
 Java introduced CORE-CAP-002 against published immutable **erbas-contract v0.10.0**.
-Its behavior remains unchanged under the current [AI-001/v0.12.0 adoption](ai.md).
+Its behavior remains unchanged under the current [v0.13.0 adoption](resources.md).
 The original CORE-CAP-002 publication identity is:
 
 - Annotated tag object: `a55a8d25beef5c24bc9cdce956a2eb2b14f41fb3`.
@@ -92,7 +92,7 @@ migration to a different runtime is involved.
 Run the normal complete check with an explicit clean published checkout:
 
 ```bash
-ERBAS_CONTRACT_DIR=/path/to/clean-v0.12.0-checkout ./bin/check
+ERBAS_CONTRACT_DIR=/path/to/clean-v0.13.0-checkout ./bin/check
 ```
 
 The same immutable release is selected by CI. Native tests cover descriptor

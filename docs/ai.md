@@ -1,8 +1,9 @@
 # AI assistant READ orchestration (AI-001)
 
-Java adopts **erbas-contract v0.12.0**. The endpoint, request, errors and existing
-capability provenance are unchanged; `toolsUsed` now also supports a closed
-primitive variant. The immutable annotated tag object is
+Java introduced controlled READ primitives with **erbas-contract v0.12.0**.
+That AI behavior remains unchanged under the current [v0.13.0 adoption](resources.md).
+`toolsUsed` supports the closed capability and primitive variants. The original
+immutable annotated tag object is
 `070990bef7bc0aa8ca8876c6b112d4edc6cf99d7`, targeting
 `0d3d1c1cd81cc39b9d9eb8840381c415cb909363`. Historical preparation wording inside
 the release does not supersede this published Git identity.
@@ -151,13 +152,13 @@ There is no public audit API or persistence table.
 Use the sole complete authority with an explicit immutable checkout:
 
 ```bash
-ERBAS_CONTRACT_DIR=/path/to/clean-v0.12.0-checkout ./bin/check
+ERBAS_CONTRACT_DIR=/path/to/clean-v0.13.0-checkout ./bin/check
 ```
 
 The isolated app already uses the validation profile; no LLM service is needed.
-CI pins the same v0.12.0 tag and validates its annotated object and target before
-provisioning and shared calls. Shared inventory is 590 requests / 2587 named checks,
-30 requests / 120 checks more than v0.10.0. These counts are separate from Java tests.
+CI pins v0.13.0 and validates its annotated object and target before provisioning
+and shared calls. The current shared inventory is 617 requests / 2655 named checks;
+the AI scenarios are unchanged. These counts are separate from Java tests.
 
 Native tests cover scalar/strict parsing, module/permission precedence, provider
 selection, catalogue filtering, AI-only authorization, untrusted tools, current

@@ -95,6 +95,17 @@ class ArchitectureTests {
     }
 
     @Test
+    void resourcesAndNavigationRemainNeutralAndUseRegisteredAdapters() throws Exception {
+        var runtime = Files.readString(CORE.resolve(JAVA_SOURCES + "/com/alxarafe/erbas/resources/ResourceRuntime.java"));
+        assertThat(runtime).contains("registry.adapter(", "users.apply(").doesNotContain("JdbcTemplate", "java.sql.", "RestTemplate", "WebClient");
+        assertThat(files(CORE.resolve(RESOURCES + "/db/core")).stream().map(path -> path.getFileName().toString()))
+                .containsExactlyInAnyOrderElementsOf(CORE_MIGRATIONS);
+        for (var area : List.of("resources", "navigation")) for (var file : files(CORE.resolve(JAVA_SOURCES + "/com/alxarafe/erbas/" + area))) {
+            assertThat(Files.readString(file)).doesNotContain(WMS_PACKAGE, AI_PACKAGE, "class Asset", "class Vehicle", "generic_sql");
+        }
+    }
+
+    @Test
     void wmsDomainAndApplicationRemainFrameworkAndAdapterIndependent() throws Exception {
         for (var layer : List.of("domain", "application")) {
             for (var file : files(WMS.resolve(JAVA_SOURCES + "/com/alxarafe/erbas/wms/" + layer))) {

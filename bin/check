@@ -48,19 +48,19 @@ check_contract() {
         *) echo 'ERROR: unexpected contract origin.' >&2; return 2 ;;
     esac
     revision="$(cat "$root/contract.revision")"
-    [[ "$revision" == v0.12.0 ]] || {
+    [[ "$revision" == v0.13.0 ]] || {
         echo 'ERROR: unsupported release in contract.revision.' >&2; return 2;
     }
     release_tag="$(git -C "$directory" rev-parse --verify "refs/tags/$revision^{tag}")" || {
         echo 'ERROR: contract checkout is missing the annotated release tag.' >&2; return 2;
     }
-    [[ "$release_tag" == 070990bef7bc0aa8ca8876c6b112d4edc6cf99d7 ]] || {
+    [[ "$release_tag" == 919684db4f607a575397576b87577cd9582e1f86 ]] || {
         echo 'ERROR: contract release tag object does not match its immutable identity.' >&2; return 2;
     }
     release_commit="$(git -C "$directory" rev-parse --verify "refs/tags/$revision^{commit}")" || {
         echo 'ERROR: contract checkout is missing the configured release tag.' >&2; return 2;
     }
-    [[ "$release_commit" == 0d3d1c1cd81cc39b9d9eb8840381c415cb909363 ]] || {
+    [[ "$release_commit" == 29bd8de3e5c5772fea5096ab2c60abc6a10e55f7 ]] || {
         echo 'ERROR: contract release tag does not resolve to its immutable commit.' >&2; return 2;
     }
     [[ "$(git -C "$directory" rev-parse HEAD)" == "$release_commit" ]] || {

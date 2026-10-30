@@ -10,6 +10,9 @@
 
 ERBAS Java is the Java/Spring Boot implementation of an API-only ERP laboratory.
 Java and .NET converge on a neutral contract so consumers can use either stack.
+Core provides a [generic Resource Runtime](docs/resources.md) and
+[effective application navigation](docs/navigation.md), with module-owned
+adapters and declarations. No Assets business module is implemented.
 
 | Repository | Responsibility |
 | --- | --- |
@@ -79,7 +82,7 @@ No host Java, Maven or Bruno is needed. See [usage](docs/usage.md).
 
 ## Status and documentation
 
-Java implements the published ERBAS Contract `v0.12.0`, recorded in
+Java implements the published ERBAS Contract `v0.13.0`, recorded in
 [contract.revision](contract.revision). The supplied checkout must be clean and
 its release tag and HEAD must resolve to the expected immutable commit.
 `./bin/check` is authoritative locally and in GitHub Actions, where shared Bruno
