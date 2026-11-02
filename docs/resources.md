@@ -26,9 +26,9 @@ The adapter receives trusted current identity and typed values/queries. It owns
 persistence and business rules. Core contains no generic record table, ORM,
 module-specific SQL or arbitrary HTTP executor. A real JDBC adapter is exercised
 in test sources against the existing PostgreSQL persistence marker. Production
-registration is empty until a functional module declares a resource. WMS legacy
-catalogues, schemas, collections and services are unchanged. No Assets module or
-business model is implemented.
+registration includes the productive [Assets resource](assets.md), whose own JDBC
+adapter owns its persistence and lifecycle. WMS legacy catalogues, schemas,
+collections and services are unchanged.
 
 ## Routes and precedence
 

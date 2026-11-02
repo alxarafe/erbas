@@ -26,11 +26,17 @@
         <module>erbas-core</module>
         <module>modules/wms</module>
         <module>modules/ai</module>
+        <module>modules/assets</module>
         <module>erbas-host</module>
     </modules>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>erbas-assets</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>erbas-core</artifactId>

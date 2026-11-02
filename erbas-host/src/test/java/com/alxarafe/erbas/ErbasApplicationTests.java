@@ -5,6 +5,8 @@ import com.alxarafe.erbas.modularity.ModuleRegistry;
 import com.alxarafe.erbas.modularity.ModuleStateService;
 import com.alxarafe.erbas.wms.WmsModule;
 import com.alxarafe.erbas.ai.AiModule;
+import com.alxarafe.erbas.assets.AssetsModule;
+import com.alxarafe.erbas.assets.AssetResource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
@@ -24,9 +26,9 @@ class ErbasApplicationTests {
 
     @Test
     void applicationContextLoads() {
-        assertThat(modules.modules().stream().map(module -> module.descriptor().id())).containsExactly(AiModule.ID, WmsModule.ID);
+        assertThat(modules.modules().stream().map(module -> module.descriptor().id())).containsExactly(AiModule.ID, AssetsModule.ID, WmsModule.ID);
         assertThat(primitives.primitives()).isEmpty();
-        assertThat(resources.definitions()).isEmpty();
-        assertThat(navigation.contributions()).isEmpty();
+        assertThat(resources.definitions()).extracting(com.alxarafe.erbas.resources.ResourceDefinition::id).containsExactly(AssetResource.RESOURCE);
+        assertThat(navigation.contributions()).extracting(com.alxarafe.erbas.navigation.NavigationContribution::moduleId).containsExactly(AssetsModule.ID);
     }
 }

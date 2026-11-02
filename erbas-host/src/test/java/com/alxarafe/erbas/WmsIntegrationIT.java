@@ -81,6 +81,7 @@ class WmsIntegrationIT {
     void normalProductionCompositionAndRealBearers() throws Exception {
         assertThat(registry.modules().stream().map(ErbasModule::descriptor))
                 .containsExactly(new ModuleDescriptor(com.alxarafe.erbas.ai.AiModule.ID, ModuleApi.CURRENT_VERSION, List.of()),
+                        new ModuleDescriptor(com.alxarafe.erbas.assets.AssetsModule.ID, ModuleApi.CURRENT_VERSION, List.of()),
                         new ModuleDescriptor(WmsModule.ID, ModuleApi.CURRENT_VERSION, List.of()));
         assertThat(runtime.modules()).containsExactlyElementsOf(registry.modules());
         assertThat(states.isEnabled(WmsModule.ID)).isTrue();
@@ -110,7 +111,7 @@ class WmsIntegrationIT {
     @Test
     void v5UpgradesV4WithoutChangingCoreDataAndFreshHistoryHasAllMigrations() {
         assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank",
-                String.class)).containsExactly("1", "2", "3", "4", "5", "6", "7");
+                String.class)).containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE NOT success", Integer.class)).isZero();
         String schema = "wms_it_v4_upgrade";
         var builder = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema)

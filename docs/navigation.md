@@ -45,9 +45,9 @@ Authorization/Accept-Language. Permission/module changes affecting the tree
 invalidate its version. Clients clear their own cached body/ETag on logout or
 context switch. There is no polling, event bus, SSE or WebSocket requirement.
 
-Normal production composition currently has no navigation contributions. The
-explicit conformance composition adds a neutral group and RESOURCE leaf for its
-protocol fixture, with English/Spanish labels from the existing Core bundles.
+Normal production composition includes the localized [Assets](assets.md) group
+and RESOURCE leaf. The explicit conformance composition adds a neutral group and
+RESOURCE leaf for its protocol fixture, with English/Spanish labels from the existing Core bundles.
 Native tests cover registry/route validation, pruning, authorization, identity,
 context, localization, ordering and caching. HTTP/PostgreSQL tests cover real
 identity changes and Accept-Language negotiation/fallback. The same

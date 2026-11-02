@@ -4,6 +4,8 @@ import org.springframework.boot.SpringApplication;
 import com.alxarafe.erbas.core.CoreConfiguration;
 import com.alxarafe.erbas.wms.infrastructure.WmsConfiguration;
 import com.alxarafe.erbas.ai.infrastructure.AiConfiguration;
+import com.alxarafe.erbas.assets.infrastructure.AssetsConfiguration;
+import com.alxarafe.erbas.security.FunctionalPermissionPolicy;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.context.annotation.Import;
@@ -17,8 +19,12 @@ import java.util.stream.Collectors;
 
 @SpringBootConfiguration
 @EnableAutoConfiguration
-@Import({CoreConfiguration.class, WmsConfiguration.class, AiConfiguration.class})
+@Import({CoreConfiguration.class, WmsConfiguration.class, AiConfiguration.class, AssetsConfiguration.class})
 public class ErbasApplication {
+    @Bean
+    public FunctionalPermissionPolicy assetAdministratorGrants() {
+        return (user, permission) -> user != null && user.enabled() && user.admin() && AssetsConfiguration.permissions().contains(permission);
+    }
     @Bean
     public CapabilitySchemaCatalog capabilitySchemas() throws IOException {
         var resource = ErbasApplication.class.getResourceAsStream("/contracts/capability-schema-components.txt");

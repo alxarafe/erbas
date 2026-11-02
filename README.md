@@ -12,12 +12,13 @@ ERBAS Java is the Java/Spring Boot implementation of an API-only ERP laboratory.
 Java and .NET converge on a neutral contract so consumers can use either stack.
 Core provides a [generic Resource Runtime](docs/resources.md) and
 [effective application navigation](docs/navigation.md), with module-owned
-adapters and declarations. No Assets business module is implemented.
+adapters and declarations. The [Assets module](docs/assets.md) provides persistent
+assets and lifecycle actions through this runtime.
 
 | Repository | Responsibility |
 | --- | --- |
 | [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and the sole Bruno collection |
-| [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot backend implementing Health, AUTH-001, USERS-001, COLLECTIONS-001, CORE module administration and WMS UoM with PostgreSQL and Flyway |
+| [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot backend implementing Health, AUTH-001, USERS-001, COLLECTIONS-001, CORE module administration, WMS and Assets with PostgreSQL and Flyway |
 | [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | .NET backend implementing Health, AUTH-001, USERS-001, COLLECTIONS-001 and CORE module administration; CI requires shared Bruno against v0.5.0 |
 | [erbas-client](https://github.com/alxarafe/erbas-client) | Angular 22 client consuming Health, AUTH-001, USERS-001 basic user administration and COLLECTIONS-001 pagination from either backend |
 
@@ -38,8 +39,8 @@ See [USERS-001 verification](docs/verification/users-001.md) and
 
 CORE module administration lists available descriptors and changes persistent
 enabled state atomically, respecting dependencies. Normal startup includes the
-production WMS module and the AI assistant module. The Maven reactor physically
-separates CORE/platform, WMS, AI and the executable host, which composes them explicitly.
+production WMS, Assets and AI assistant modules. The Maven reactor physically
+separates CORE/platform, WMS, Assets, AI and the executable host, which composes them explicitly.
 AI orchestrates effective READ capabilities through CORE. No real AI provider is
 configured; normal requests return `assistant_unavailable`. See [AI](docs/ai.md).
 See the [physical architecture decision](docs/decisions/0002-physical-module-boundaries.md).

@@ -22,6 +22,8 @@ class ArchitectureTests {
     private static final Path CORE = ROOT.resolve("erbas-core");
     private static final Path WMS = ROOT.resolve("modules/wms");
     private static final Path AI = ROOT.resolve("modules/ai");
+    private static final Path ASSETS = ROOT.resolve("modules/assets");
+    private static final String ASSETS_PACKAGE = "com.alxarafe.erbas.assets";
     private static final Path HOST = ROOT.resolve("erbas-host");
     private static final String JAVA_SOURCES = "src/main/java";
     private static final String RESOURCES = "src/main/resources";
@@ -41,10 +43,11 @@ class ArchitectureTests {
     @Test
     void mavenDependencyDirectionIsHostToCoreAndWmsAndWmsToCore() throws Exception {
         assertThat(dependencies(ROOT)).doesNotContain("erbas-core", "erbas-wms", "erbas-ai", "erbas-host");
-        assertThat(dependencies(CORE)).doesNotContain("erbas-wms", "erbas-ai", "erbas-host");
-        assertThat(dependencies(WMS)).contains("erbas-core").doesNotContain("erbas-ai", "erbas-host");
+        assertThat(dependencies(CORE)).doesNotContain("erbas-wms", "erbas-ai", "erbas-assets", "erbas-host");
+        assertThat(dependencies(WMS)).contains("erbas-core").doesNotContain("erbas-ai", "erbas-assets", "erbas-host");
         assertThat(dependencies(AI)).containsExactly("erbas-core");
-        assertThat(dependencies(HOST)).contains("erbas-core", "erbas-wms", "erbas-ai");
+        assertThat(dependencies(ASSETS)).containsExactly("erbas-core");
+        assertThat(dependencies(HOST)).contains("erbas-core", "erbas-wms", "erbas-ai", "erbas-assets");
     }
 
     @Test
@@ -52,14 +55,14 @@ class ArchitectureTests {
         for (var file : files(CORE.resolve("src/main"))) {
             assertThat(Files.readString(file)).as(file.toString()).doesNotContain(WMS_PACKAGE,
                     "WmsModule", "/api/wms", "wms_uoms", "ItemFamily", "wms_item_families", "wms_item_family", "wms_storage_attribute",
-                    AI_PACKAGE, "/api/ai", "AiModule");
+                    AI_PACKAGE, "/api/ai", "AiModule", ASSETS_PACKAGE, "assets.asset", "assets_assets", "AssetsModule");
         }
     }
 
     @Test
     void hostExplicitlyImportsOnlyTheWmsCompositionBoundary() throws Exception {
         var source = Files.readString(HOST.resolve(JAVA_SOURCES + "/com/alxarafe/erbas/ErbasApplication.java"));
-        assertThat(source).contains("@Import({CoreConfiguration.class, WmsConfiguration.class, AiConfiguration.class})")
+        assertThat(source).contains("@Import({CoreConfiguration.class, WmsConfiguration.class, AiConfiguration.class, AssetsConfiguration.class})")
                 .doesNotContain("@SpringBootApplication", "@ComponentScan");
         for (var file : files(HOST.resolve(JAVA_SOURCES))) {
             // Include qualified references as well as imports.
@@ -68,6 +71,8 @@ class ArchitectureTests {
             while (references.find()) assertThat(references.group()).isEqualTo(WMS_COMPOSITION);
             var aiReferences = Pattern.compile(Pattern.quote(AI_PACKAGE) + "(?:\\.[\\w$]+)+").matcher(Files.readString(file));
             while (aiReferences.find()) assertThat(aiReferences.group()).isEqualTo(AI_COMPOSITION);
+            var assetReferences = Pattern.compile(Pattern.quote(ASSETS_PACKAGE) + "(?:\\.[\\w$]+)+").matcher(Files.readString(file));
+            while (assetReferences.find()) assertThat(assetReferences.group()).isEqualTo(ASSETS_PACKAGE + ".infrastructure.AssetsConfiguration");
         }
     }
 
@@ -87,7 +92,7 @@ class ArchitectureTests {
     void primitiveRouterIsNeutralAndNoProductiveFixtureOrHttpTransportIsInstalled() throws Exception {
         var router = Files.readString(CORE.resolve(JAVA_SOURCES + "/com/alxarafe/erbas/read/ReadPrimitiveRouter.java"));
         assertThat(router).contains("users.apply(").doesNotContain("java.net.", "RestTemplate", "WebClient", "@RestController");
-        for (var module : List.of(CORE, WMS, AI)) {
+        for (var module : List.of(CORE, WMS, AI, ASSETS)) {
             for (var file : files(module.resolve("src/main"))) {
                 assertThat(Files.readString(file)).doesNotContain("wms.inventory.list", "fixture.units.read");
             }
@@ -127,10 +132,19 @@ class ArchitectureTests {
         assertThat(Files.readString(HOST.resolve(RESOURCES + "/application.properties")))
                 .contains("spring.flyway.locations=classpath:db/core,classpath:db/wms")
                 .doesNotContain("spring.flyway.validate-on-migrate=false");
-        for (var library : List.of(ROOT, CORE, WMS, AI)) {
+        for (var library : List.of(ROOT, CORE, WMS, AI, ASSETS)) {
             assertThat(Files.readString(library.resolve("pom.xml"))).doesNotContain(BOOT_PLUGIN);
         }
         assertThat(Files.readString(HOST.resolve("pom.xml"))).contains(BOOT_PLUGIN);
+    }
+
+    @Test
+    void assetsUseOnlyCoreAndGenericHttpWithoutBusinessCrossDependencies() throws Exception {
+        for (var module : List.of(WMS, AI)) for (var file : files(module.resolve("src/main")))
+            assertThat(Files.readString(file)).doesNotContain(ASSETS_PACKAGE, "assets.asset", "assets_assets");
+        for (var file : files(ASSETS.resolve("src/main/java")))
+            assertThat(Files.readString(file)).doesNotContain(WMS_PACKAGE, AI_PACKAGE, "@RestController", "@RequestMapping", "/api/assets", ".admin()");
+        assertThat(ASSETS.resolve(RESOURCES + "/db/assets/V8__assets.sql")).isRegularFile();
     }
 
     @Test

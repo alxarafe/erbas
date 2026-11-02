@@ -17,17 +17,18 @@ ModuleSource(s) -> ModuleRegistry -> ModuleGraph -> ModuleRuntime
 ## Physical Maven ownership
 
 The root `pom.xml` is an aggregator and dependency-management parent. It does not
-produce an executable application. Four artifacts compose the one process:
+produce an executable application. Five artifacts compose the one process:
 
 | Source root | Artifact | Responsibility | Internal dependencies |
 | --- | --- | --- | --- |
 | `erbas-core/` | `erbas-core` | Non-disableable platform: Health, HTTP/i18n, authentication, users, collections, module contracts/runtime/gating and CORE persistence | None |
 | `modules/wms/` | `erbas-wms` | WMS UoM, StorageAttribute, ItemFamily and association domain/application, HTTP/JDBC adapters, Spring composition and migration resources | CORE |
 | `modules/ai/` | `erbas-ai` | AI-001 provider-neutral READ orchestration through CORE, permission/module gates, HTTP, audit and AI resources | CORE |
-| `erbas-host/` | `erbas-host` | Executable Spring Boot composition root and runtime configuration | CORE, WMS and AI |
+| `modules/assets/` | `erbas-assets` | Persistent asset resource, lifecycle and resource/navigation declarations | CORE only |
+| `erbas-host/` | `erbas-host` | Executable Spring Boot composition root and runtime configuration | CORE, WMS, Assets and AI |
 
 Java packages remain stable. `ErbasApplication` imports `CoreConfiguration`,
-`WmsConfiguration` and `AiConfiguration` explicitly; it does not scan the parent package to discover
+`WmsConfiguration`, `AssetsConfiguration` and `AiConfiguration` explicitly; it does not scan the parent package to discover
 functional modules. CORE scans only its owned platform packages. WMS explicitly
 imports its own HTTP adapters and registers its services, descriptor and Spring
 Security customizer. Both authentication and that customizer use the generic
@@ -44,7 +45,8 @@ for migration compatibility and verification commands.
 
 WMS owns V5 UoMs, V6 Storage Attributes and V7 Item Families/associations under
 `modules/wms/src/main/resources/db/wms`. The host composes these with CORE V1–V4
-in one validated Flyway history. Existing SQL migrations remain immutable.
+in one validated Flyway history, together with Assets V8 under `db/assets`.
+Existing SQL migrations remain immutable. See [Assets](assets.md).
 WMS serializes association writes by locking the owning family row, evaluates
 reference existence and pre-state conflicts before any writes, and commits the
 accepted delta in one PostgreSQL transaction. CORE owns only the generic technical
@@ -188,7 +190,7 @@ All specified responses are JSON with `Cache-Control: no-store`; only 401 carrie
 `validation` profile and `erbas.modules.conformance.enabled=true` are both set.
 The environment binding is `ERBAS_MODULES_CONFORMANCE_ENABLED`, default false.
 `docker/compose.validation.yaml` enables it explicitly; development/production
-composition does not register it. Normal startup registers WMS and AI, without these
+composition does not register it. Normal startup registers WMS, Assets and AI, without these
 conformance descriptors.
 
 The source contributes exactly `erbas.dev.math` (no dependencies) and

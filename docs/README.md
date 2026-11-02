@@ -1,5 +1,7 @@
 # Documentation
 
+See [Assets](assets.md) for the persistent asset resource and lifecycle module.
+
 | Document | Purpose |
 | --- | --- |
 | [Resource Runtime](resources.md) | Generic resource registration, validation, CRUD, metadata, adapters and v0.14.0 contextual presentation adoption under review |

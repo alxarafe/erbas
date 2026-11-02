@@ -290,6 +290,8 @@ DO $$ BEGIN
        OR (SELECT count(*) FROM flyway_schema_history WHERE version = '5' AND success) <> 1
        OR (SELECT count(*) FROM flyway_schema_history WHERE version = '6' AND success) <> 1
        OR (SELECT count(*) FROM flyway_schema_history WHERE version = '7' AND success) <> 1
+       OR (SELECT count(*) FROM flyway_schema_history WHERE version = '8' AND success) <> 1
+       OR to_regclass('public.assets_assets') IS NULL
        OR to_regclass('public.wms_uoms') IS NULL
        OR to_regclass('public.wms_storage_attributes') IS NULL
        OR to_regclass('public.wms_item_families') IS NULL
@@ -377,7 +379,8 @@ DO $$ BEGIN
        OR EXISTS (SELECT 1 FROM auth_user
                   WHERE password_hash !~ '^\{pbkdf2-sha256-600000\}[0-9a-f]{96}$')
        OR EXISTS (SELECT 1 FROM auth_access_token t LEFT JOIN auth_user u ON t.user_id = u.id WHERE u.id IS NULL)
-       OR (SELECT count(*) FROM flyway_schema_history WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7')) <> 7
+       OR (SELECT count(*) FROM flyway_schema_history WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7', '8')) <> 8
+       OR to_regclass('public.assets_assets') IS NULL
        OR to_regclass('public.wms_uoms') IS NULL
        OR to_regclass('public.wms_storage_attributes') IS NULL
        OR to_regclass('public.wms_item_families') IS NULL

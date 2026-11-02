@@ -59,7 +59,7 @@ class MigrationCompatibilityIT {
             var flyway = context.getBean(Flyway.class);
             assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
             assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank",
-                    String.class)).containsExactly("1", "2", "3", "4", "5", "6", "7");
+                    String.class)).containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
             assertThat(jdbc.queryForObject("SELECT count(*) FROM " + JdbcUomStore.TABLE, Integer.class)).isZero();
             assertThat(jdbc.queryForObject("SELECT count(*) FROM " + JdbcStorageAttributeStore.TABLE, Integer.class)).isZero();
             assertThat(jdbc.queryForObject("SELECT count(*) FROM " + JdbcItemFamilyStore.TABLE, Integer.class)).isZero();

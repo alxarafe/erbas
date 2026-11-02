@@ -147,7 +147,8 @@ class ResourceRuntimeIntegrationIT {
         jdbc.update("UPDATE auth_user SET admin = true WHERE id = ?", adminId);
         modules.disable(ConformanceModulesConfiguration.STATISTICS_ID); modules.disable(ConformanceModulesConfiguration.MATH_ID);
         var disabled = checked(call("GET", NavigationController.PATH, admin, null, etag, null), HttpStatus.OK);
-        assertThat(disabled.get("items").isEmpty()).isTrue();
+        assertThat(disabled.get("items").toString()).doesNotContain(ResourceConformanceConfiguration.RESOURCE)
+                .contains(com.alxarafe.erbas.assets.AssetResource.RESOURCE);
     }
     @Test void legacyContextPresentationIsEmptyAndMatchesClosedFunctionalMetadata() throws Exception {
         String path = ResourceMetadata.ROOT + "/" + ResourceConformanceConfiguration.RESOURCE;
