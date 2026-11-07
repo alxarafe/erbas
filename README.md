@@ -61,6 +61,8 @@ for behavior, error handling and verification scope.
 
 Start and stop the development environment with Docker:
 
+[Development environment configuration](docs/usage.md#development-environment-configuration).
+
 ```bash
 ./bin/up
 ./bin/down

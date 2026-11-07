@@ -1,6 +1,11 @@
 # Local private documentation (Spanish)
 /private/
 
+# Local environment secrets; only the root, secret-free template is versioned.
+.env
+.env.*
+!/.env.example
+
 # Maven output
 **/target/
 
