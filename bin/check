@@ -239,21 +239,21 @@ echo "RUN_ID=$project NETWORK=$network SCENARIO=$scenario"
 bounded 30 "${compose[@]}" config --quiet
 bounded "$maven_timeout_seconds" "${compose[@]}" build native-tests app
 # CORE must compile and test without selecting WMS or the host reactor modules.
-bounded "$maven_timeout_seconds" "${compose[@]}" run --rm --no-deps core-tests
+bounded "$maven_timeout_seconds" "${compose[@]}" run --rm --no-deps --interactive=false -T core-tests
 # Always execute native tests in a fresh container, even with cached image layers.
-bounded "$maven_timeout_seconds" "${compose[@]}" run --rm --no-deps native-tests
+bounded "$maven_timeout_seconds" "${compose[@]}" run --rm --no-deps --interactive=false -T native-tests
 bounded 120 "${compose[@]}" up --detach --wait --wait-timeout 110 postgres-native postgres-api
 
 assert_empty() {
     local service="$1" count
-    docker_query 15 "initial table count for $service" "${compose[@]}" exec -T "$service" psql -U erbas_validation -d erbas_validation -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';"
+    docker_query 15 "initial table count for $service" "${compose[@]}" exec --interactive=false -T "$service" psql -U erbas_validation -d erbas_validation -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';"
     count="$query_result"
     [[ "$count" == 0 ]] || { echo "ERROR: $service was not empty before migration." >&2; return 1; }
     echo "EMPTY_DATABASE=$service TABLES=$count"
 }
 assert_empty postgres-native
 assert_empty postgres-api
-bounded "$maven_timeout_seconds" "${compose[@]}" run --rm --no-deps native-integration
+bounded "$maven_timeout_seconds" "${compose[@]}" run --rm --no-deps --interactive=false -T native-integration
 bounded 30 "${compose[@]}" up --detach --no-deps app
 docker_query 15 'application container identity' "${compose[@]}" ps --all --quiet app
 app_id="$query_result"
@@ -275,7 +275,7 @@ while :; do
     fi
     sleep 1
 done
-docker_query 15 'Actuator HTTP response' "${compose[@]}" exec -T app curl --silent --show-error --max-time 5 \
+docker_query 15 'Actuator HTTP response' "${compose[@]}" exec --interactive=false -T app curl --silent --show-error --max-time 5 \
     --max-redirs 0 --write-out '\n%{http_code}' -H 'Accept: application/json' http://localhost:8080/actuator/health
 actuator_http="${query_result##*$'\n'}"
 printf '%s\n' "${query_result%$'\n'*}"
@@ -330,7 +330,7 @@ verify_fixture
 # Capture a real emitted token only in memory so the final log check can detect it.
 # The generated email and hex password contain no JSON metacharacters. Values are
 # injected by environment name, never command-line arguments or build arguments.
-docker_query 15 'login for sensitive-log verification' "${compose[@]}" exec -T \
+docker_query 15 'login for sensitive-log verification' "${compose[@]}" exec --interactive=false -T \
     --env ERBAS_TEST_EMAIL --env ERBAS_TEST_PASSWORD app sh -c '
     printf "{\"email\":\"%s\",\"password\":\"%s\"}" "$ERBAS_TEST_EMAIL" "$ERBAS_TEST_PASSWORD" |
         curl --fail --silent --show-error --max-time 5 --max-redirs 0 \
@@ -399,7 +399,7 @@ docker_query 15 "API PostgreSQL stopped state for $postgres_id" docker container
     echo 'ERROR: API PostgreSQL is still running.' >&2; exit 1;
 }
 echo 'API_POSTGRES_RUNNING=false'
-docker_query 15 'database-independent Health HTTP response' "${compose[@]}" exec -T app \
+docker_query 15 'database-independent Health HTTP response' "${compose[@]}" exec --interactive=false -T app \
     curl --silent --show-error --max-time 5 --max-redirs 0 --write-out '\n%{http_code}\n%{content_type}' \
     -H 'Accept: application/json' -H 'Authorization: Bearer aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
     http://localhost:8080/health
@@ -411,7 +411,7 @@ health_body="${health_payload%$'\n'*}"
     echo 'ERROR: database-down Health is not exact HTTP 200 application/json {"status":"ok"}.' >&2; exit 1;
 }
 echo 'HEALTH_RUN=success PHASE=database-down HTTP=200 JSON=exact'
-docker_query 45 'database-down operational Actuator HTTP response' "${compose[@]}" exec -T app \
+docker_query 45 'database-down operational Actuator HTTP response' "${compose[@]}" exec --interactive=false -T app \
     curl --silent --show-error --max-time 40 --max-redirs 0 --write-out '\n%{http_code}' \
     -H 'Accept: application/json' http://localhost:8080/actuator/health
 echo "ACTUATOR_HTTP=${query_result##*$'\n'} PHASE=database-down"

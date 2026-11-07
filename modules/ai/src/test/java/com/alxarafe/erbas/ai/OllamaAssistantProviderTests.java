@@ -95,7 +95,7 @@ class OllamaAssistantProviderTests {
     @Test void resolvesListSchemaWithoutChangingDescriptorAndUsesActualResults() {
         var schema = json.readTree("{\"$ref\":\"#/components/schemas/CapabilityListInput\"}");
         var tools = List.of(new AiAssistantProvider.Tool(AiAssistantProvider.Kind.CAPABILITY, UOMS, "Units", "Read units", schema));
-        reply.set("{\"done\":true,\"message\":{\"tool_calls\":[{\"function\":{\"name\":\"read_0\",\"arguments\":{}}}]}}");
+        reply.set("{\"done\":true,\"message\":{\"role\":\"assistant\",\"tool_calls\":[{\"function\":{\"name\":\"read_0\",\"arguments\":{}}}]}}");
         var call = (AiAssistantProvider.ToolCall) provider.respond("List units", tools, List.of());
         assertThat(call.capabilityId()).isEqualTo(UOMS);
         assertThat(call.input()).isEqualTo(json.createObjectNode());
@@ -108,7 +108,7 @@ class OllamaAssistantProviderTests {
         assertThat(requests.getFirst().path("model").asString()).isEqualTo(MODEL);
         assertThat(requests.getFirst().path("stream").asBoolean()).isFalse();
         for (String value : List.of("persisted unit A", "changed persisted unit B")) {
-            reply.set(json.writeValueAsString(Map.of("done", true, "message", Map.of("content", value))));
+            reply.set(json.writeValueAsString(Map.of("done", true, "message", Map.of("role", "assistant", "content", value))));
             assertThat(provider.respond("List units", tools, List.of(new AiAssistantProvider.ToolResult(
                     AiAssistantProvider.Kind.CAPABILITY, UOMS, json.valueToTree(Map.of("description", value))))))
                     .isEqualTo(new AiAssistantProvider.Answer(value));
@@ -117,10 +117,10 @@ class OllamaAssistantProviderTests {
     }
     @Test void acceptsOnlyAdvertisedToolsAndStructuredArguments() {
         var tools = List.of(new AiAssistantProvider.Tool(AiAssistantProvider.Kind.PRIMITIVE, "fixture.units.read", "Read", "Read", json.readTree("{\"type\":\"object\"}")));
-        reply.set("{\"done\":true,\"message\":{\"tool_calls\":[{\"function\":{\"name\":\"read_0\",\"arguments\":{}}}]}}");
+        reply.set("{\"done\":true,\"message\":{\"role\":\"assistant\",\"tool_calls\":[{\"function\":{\"name\":\"read_0\",\"arguments\":{}}}]}}");
         assertThat(provider.respond("read", tools, List.of())).isInstanceOf(AiAssistantProvider.PrimitiveCall.class);
         for (String name : List.of("https://example.test", "write_0", "read_1")) {
-            reply.set(json.writeValueAsString(Map.of("done", true, "message", Map.of("tool_calls", List.of(
+            reply.set(json.writeValueAsString(Map.of("done", true, "message", Map.of("role", "assistant", "tool_calls", List.of(
                     Map.of("function", Map.of("name", name, "arguments", Map.of())))))));
             assertThatThrownBy(() -> provider.respond("read", tools, List.of())).isInstanceOf(IllegalStateException.class);
         }
@@ -134,7 +134,7 @@ class OllamaAssistantProviderTests {
         assertThatThrownBy(() -> provider.respond("read", List.of(), List.of())).isInstanceOf(AiAssistantProvider.Unavailable.class);
         assertThat(requests).hasSize(beforeRedirect + 1);
         status = 200;
-        for (String body : List.of("{}", "{\"done\":true,\"message\":{\"content\":42}}", "not-json")) {
+        for (String body : List.of("{}", "{\"done\":true,\"message\":{\"role\":\"assistant\",\"content\":42}}", "not-json")) {
             reply.set(body);
             assertThatThrownBy(() -> provider.respond("read", List.of(), List.of())).isInstanceOf(RuntimeException.class);
         }
@@ -144,16 +144,16 @@ class OllamaAssistantProviderTests {
     @Test void multipleCallsAndNonObjectArgumentsCannotExecute() {
         var tool = new AiAssistantProvider.Tool(AiAssistantProvider.Kind.CAPABILITY, UOMS, "Units", "Read", json.readTree("{\"type\":\"object\"}"));
         var function = Map.of("function", Map.of("name", "read_0", "arguments", Map.of()));
-        reply.set(json.writeValueAsString(Map.of("done", true, "message", Map.of("tool_calls", List.of(function, function)))));
+        reply.set(json.writeValueAsString(Map.of("done", true, "message", Map.of("role", "assistant", "tool_calls", List.of(function, function)))));
         assertThatThrownBy(() -> provider.respond("read", List.of(tool), List.of())).isInstanceOf(IllegalStateException.class);
-        reply.set(json.writeValueAsString(Map.of("done", true, "message", Map.of("tool_calls", List.of(
+        reply.set(json.writeValueAsString(Map.of("done", true, "message", Map.of("role", "assistant", "tool_calls", List.of(
                 Map.of("function", Map.of("name", "read_0", "arguments", "http://example.test")))))));
         assertThatThrownBy(() -> provider.respond("read", List.of(tool), List.of())).isInstanceOf(IllegalStateException.class);
     }
     @Test void replaysOriginalCallsArgumentsAndCorrelatedFeedbackBeforeSuccessfulResults() {
         var tools = List.of(new AiAssistantProvider.Tool(AiAssistantProvider.Kind.CAPABILITY, UOMS, "Units", "Read units",
                 json.readTree("{\"$ref\":\"#/components/schemas/CapabilityListInput\"}")));
-        reply.set("{\"done\":true,\"message\":{\"content\":\"Need current data\",\"tool_calls\":[{\"id\":\"model-call-1\",\"function\":{\"name\":\"read_0\",\"arguments\":{\"limit\":\"1000\"}}}]}}");
+        reply.set("{\"done\":true,\"message\":{\"role\":\"assistant\",\"content\":\"Need current data\",\"tool_calls\":[{\"id\":\"model-call-1\",\"function\":{\"name\":\"read_0\",\"arguments\":{\"limit\":\"1000\"}}}]}}");
         var call = (AiAssistantProvider.ToolCall) provider.respond("List units", tools, List.of());
         assertThat(call.input().path("limit").isString()).isTrue();
         assertThat(call.callId()).isEqualTo("model-call-1");
@@ -162,7 +162,7 @@ class OllamaAssistantProviderTests {
                 call.input(), call.callId(), call.content());
         var successful = new AiAssistantProvider.ToolResult(AiAssistantProvider.Kind.CAPABILITY, UOMS,
                 json.valueToTree(Map.of("description", "Current persisted unit")), json.createObjectNode(), "model-call-2", "Retry");
-        reply.set("{\"done\":true,\"message\":{\"content\":\"Current persisted unit\"}}");
+        reply.set("{\"done\":true,\"message\":{\"role\":\"assistant\",\"content\":\"Current persisted unit\"}}");
         assertThat(provider.respond("List units", tools, List.of(rejected, successful)))
                 .isEqualTo(new AiAssistantProvider.Answer("Current persisted unit"));
         var history = requests.getLast().path("messages");

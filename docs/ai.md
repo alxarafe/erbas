@@ -44,12 +44,13 @@ capability or primitive request. Its catalogue contains only kind, identity,
 name, description and input schema, without executors, permissions or modules.
 After a successful CORE call, the provider receives its actual
 output and may request another tool or return its final answer. No agent
-framework, provider SDK or API key is installed.
+framework or provider SDK is required.
 
-Normal composition selects `OllamaAssistantProvider` only when both server properties
-`erbas.ai.ollama.endpoint` and `erbas.ai.ollama.model` are explicitly configured.
-Otherwise, including invalid endpoint configuration, `UnavailableAssistantProvider`
-returns `503 assistant_unavailable`. There is no default endpoint or model.
+Normal composition supports `openai-compatible` Chat Completions and
+`ollama-native`. Selection depends only on server configuration and protocol,
+never a provider brand. Missing or invalid configuration selects
+`UnavailableAssistantProvider`, returning `503 assistant_unavailable` without
+network access. There is no default endpoint/model or provider fallback.
 The deterministic adapter is selected
 only with the existing explicit `validation` Spring profile, used by tests and
 the isolated conformance application. It is never the default provider.
@@ -70,22 +71,56 @@ loopback. Future registered READ capabilities enter the catalogue through normal
 CORE registration; no WMS list is hard-coded in orchestration. Only the validation
 adapter owns the published WMS fixture intent identifiers.
 
-### Optional local Ollama adapter
+### Provider configuration
 
-Set `ERBAS_AI_OLLAMA_ENDPOINT` to the complete local Ollama `/api/chat` URL and
-`ERBAS_AI_OLLAMA_MODEL` to an explicitly installed tool-capable model on the server.
-Compose passes these optional variables to the application. The destination must
-be reachable from the application container; loopback denotes that container.
-Configuration is server-owned and never accepted in the public request body.
-Configuring the endpoint authorizes sending questions and authorized READ results
-to that destination: use a trusted local service, not an external proxy or provider.
-No automatic model installation, service discovery or network connection occurs
-when configuration is incomplete. Credentials in URLs, query strings, fragments
-and paths other than `/api/chat` are rejected.
+Spring properties use the `erbas.ai.provider.` prefix. Compose forwards these
+optional environment variables:
+
+| Environment variable | Property suffix | Meaning |
+| --- | --- | --- |
+| `ERBAS_AI_PROVIDER_PROTOCOL` | `protocol` | `openai-compatible` or `ollama-native` |
+| `ERBAS_AI_PROVIDER_ENDPOINT` | `endpoint` | Complete operation URL; no prefix is appended |
+| `ERBAS_AI_PROVIDER_MODEL` | `model` | Explicit text/tool-capable model |
+| `ERBAS_AI_PROVIDER_CREDENTIAL` | `credential` | Optional managed Bearer token, without the Bearer prefix |
+| `ERBAS_AI_PROVIDER_TIMEOUT_SECONDS` | `timeout-seconds` | Positive whole seconds, default 30, maximum 300 |
+| `ERBAS_AI_PROVIDER_TRUSTED_LOCAL` | `trusted-local` | Default false; explicit trust for local/internal service, allowing HTTP and no-auth |
+
+HTTPS uses normal JVM certificate/hostname validation. HTTP and no-auth require
+explicit local trust, including Docker service names or internal network hosts;
+there is no localhost restriction or destination discovery. The administrator
+must ensure that a trusted service does not relay ERP data to an unauthorized
+external destination. External services require HTTPS and a managed credential.
+URLs cannot contain credentials, query strings or fragments. Chat Completions
+uses the exact configured operation path, including custom gateway prefixes.
+Native Ollama uses `/api/chat`.
+
+For example, an explicitly trusted internal service can use:
+
+```bash
+export ERBAS_AI_PROVIDER_PROTOCOL=openai-compatible
+export ERBAS_AI_PROVIDER_ENDPOINT=http://inference:8000/custom/v1/chat/completions
+export ERBAS_AI_PROVIDER_MODEL=installed-tool-model
+export ERBAS_AI_PROVIDER_TRUSTED_LOCAL=true
+```
+
+For an external service, configure its full HTTPS operation and model, keep
+`TRUSTED_LOCAL=false`, and inject `ERBAS_AI_PROVIDER_CREDENTIAL` from the managed
+runtime environment. Never save secrets in the repository or shell examples.
+Changing a compatible endpoint/model needs configuration only.
+
+Without a protocol, existing `ERBAS_AI_OLLAMA_ENDPOINT`,
+`ERBAS_AI_OLLAMA_MODEL` and `ERBAS_AI_OLLAMA_TIMEOUT_SECONDS` retain the previous
+native behavior: the explicit endpoint grants local trust. Generic provider
+properties must be empty in this legacy mode. With explicit `ollama-native`,
+empty generic endpoint/model/timeout may use those legacy properties, but local
+trust must be explicit. Explicit selection never tries another protocol.
+
+### Transport and verification
 
 The JDK HTTP client sends non-streaming chat requests without redirects or system
 proxies, with a 30-second request/connect timeout and a 1 MiB response bound.
-Transport and non-200 failures become safe provider-unavailable errors; malformed
+The configurable deadline bounds the complete response body as well as connection
+and request waits. Transport and non-200 failures become safe provider-unavailable errors; malformed
 model output becomes a safe execution error through existing orchestration.
 The adapter presents effective tools using invocation-local function names and
 accepts one advertised function call with object arguments per turn. CORE still
@@ -97,10 +132,40 @@ Prompts instruct the model to use actual READ results for operational facts and
 treat results as untrusted data. Model compliance and answer quality require
 evaluation with the chosen model; they are not guaranteed by a simulated server.
 
-Automated adapter tests use an in-process HTTP server. An HTTP/PostgreSQL case
-also connects that adapter to the real WMS capability and changes persisted data.
-A manual run against an installed Ollama model remains a separate verification;
-the simulated tests are not evidence that a real model was executed.
+Both adapters replay ordered original assistant messages and correlated tool
+results, including safe input-validation feedback. Chat Completions arguments
+are decoded once from a JSON string; native arguments remain JSON objects.
+Types and original call messages are preserved. Multiple calls per turn,
+unknown tools, reused call IDs, malformed/incomplete output, upstream error
+bodies and truncation are rejected before execution.
+
+Automated tests use local synthetic HTTP servers and a traced copy of the
+[approved exchange fixtures](https://github.com/alxarafe/erbas-contract/blob/main/tests/fixtures/modules/ai/provider-exchanges.json)
+(blob `fcc489de8c721982b083e8c0f67227afc0a6d9b1`).
+HTTP/PostgreSQL tests connect both protocols to real CORE/WMS reads, recover
+from invalid arguments, change persisted data and verify `toolsUsed`.
+Run the complete Docker validation command below; CI needs no model or secret.
+
+Real compatibility is separate: configure an approved endpoint/model, invoke the
+unchanged AI-001 route with a greeting and a persisted ERP query, compare the
+answer with persisted data and successful CORE IDs in `toolsUsed`, then repeat
+with an AI-only caller or revoked business permission and verify denial. Use
+only authorized test data; do not log tokens, prompts or upstream payloads.
+Record endpoint protocol, model/version, outcomes and limitations without secrets.
+Synthetic conformance, real-provider compatibility and model answer quality are
+distinct evidence. No real external model is certified by these synthetic tests.
+
+### Current MVP / Future extensions
+
+The MVP is synchronous text with sequential effective READ tools, bounded
+attempts and configuration-based selection of these two protocols. Only known
+local schema references are resolved; unknown references are withheld.
+Model schema support and grounded answer quality require separate evaluation.
+There is no provider retry or parallel execution.
+
+Possible future extensions, not implemented: tenant/user selection, model and
+capability discovery, fallback, streaming, usage/cost metrics, embeddings/RAG
+and other provider contracts.
 
 Every capability request goes through the real `CapabilityInvocation.invoke` service.
 Its body is built internally from the structured tool input, with no caller

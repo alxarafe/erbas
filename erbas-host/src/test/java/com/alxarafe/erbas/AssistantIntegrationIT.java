@@ -113,14 +113,17 @@ class AssistantIntegrationIT {
         }
         http.close();
     }
-    @Test void ollamaAdapterReadsPersistedWmsThroughCoreAndKeepsProvenance() throws Exception {
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void protocolAdaptersReadPersistedWmsThroughCoreAndKeepProvenance(boolean completions) throws Exception {
+        String chatPath = completions ? "/synthetic/chat/completions"
+                : com.alxarafe.erbas.ai.infrastructure.OllamaAssistantProvider.CHAT_PATH;
         var server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
         var failure = new AtomicReference<Throwable>();
-        server.createContext(com.alxarafe.erbas.ai.infrastructure.OllamaAssistantProvider.CHAT_PATH, exchange -> {
+        server.createContext(chatPath, exchange -> {
             try {
                 var request = json.readTree(exchange.getRequestBody().readAllBytes());
                 var messages = request.path("messages");
-                Object reply;
+                Map<String, Object> reply;
                 if (messages.size() == 2 || messages.size() == 4) {
                     if (messages.size() == 4) {
                         assertThat(json.readTree(messages.get(3).path("content").asString()).path("status").asString())
@@ -138,13 +141,19 @@ class AssistantIntegrationIT {
                         }
                     }
                     assertThat(name).isNotNull();
-                    reply = Map.of("tool_calls", List.of(Map.of("function", Map.of("name", name, "arguments",
-                            messages.size() == 2 ? Map.of("limit", "50") : Map.of()))));
+                    Object arguments = messages.size() == 2 ? Map.of("limit", "50") : Map.of();
+                    if (completions) arguments = json.writeValueAsString(arguments);
+                    reply = Map.of("role", "assistant", "tool_calls", List.of(Map.of(
+                            "id", "synthetic-call-" + messages.size(), "type", "function",
+                            "function", Map.of("name", name, "arguments", arguments))));
                 } else {
                     // The simulated model echoes evidence received from the actual CORE call, not its own fixtures.
-                    reply = Map.of("content", messages.get(messages.size() - 1).path("content").asString());
+                    reply = Map.of("role", "assistant", "content", messages.get(messages.size() - 1).path("content").asString());
                 }
-                byte[] bytes = json.writeValueAsBytes(Map.of("done", true, "message", reply));
+                byte[] bytes = json.writeValueAsBytes(completions
+                        ? Map.of("choices", List.of(Map.of("message", reply,
+                                "finish_reason", reply.containsKey("tool_calls") ? "tool_calls" : "stop")))
+                        : Map.of("done", true, "message", reply));
                 exchange.sendResponseHeaders(HttpStatus.OK.value(), bytes.length);
                 try (var output = exchange.getResponseBody()) { output.write(bytes); }
             } catch (Throwable problem) {
@@ -152,9 +161,11 @@ class AssistantIntegrationIT {
             } finally { exchange.close(); }
         });
         server.start();
-        provider.override.set(new com.alxarafe.erbas.ai.infrastructure.OllamaAssistantProvider(
-                URI.create("http://127.0.0.1:" + server.getAddress().getPort()
-                        + com.alxarafe.erbas.ai.infrastructure.OllamaAssistantProvider.CHAT_PATH), "synthetic-test-model"));
+        var endpoint = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + chatPath);
+        provider.override.set(completions
+                ? new com.alxarafe.erbas.ai.infrastructure.OpenAiCompatibleAssistantProvider(
+                        endpoint, "synthetic-test-model", java.time.Duration.ofSeconds(2), "", true)
+                : new com.alxarafe.erbas.ai.infrastructure.OllamaAssistantProvider(endpoint, "synthetic-test-model"));
         try {
             for (String description : List.of("Ollama persisted first", "Ollama persisted changed")) {
                 jdbc.update("UPDATE wms_uoms SET description = ? WHERE id = ?", description, ownedRows.get("wms_uoms"));

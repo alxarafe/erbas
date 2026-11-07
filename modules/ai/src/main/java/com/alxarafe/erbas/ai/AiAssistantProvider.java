@@ -17,18 +17,35 @@ public interface AiAssistantProvider {
     }
     sealed interface Turn permits Answer, ToolCall, PrimitiveCall { }
     record Answer(String text) implements Turn { }
-    record ToolCall(String capabilityId, JsonNode input, String callId, String content) implements Turn {
+    record ToolCall(String capabilityId, JsonNode input, String callId, String content, JsonNode assistantMessage) implements Turn {
+        public ToolCall(String capabilityId, JsonNode input, String callId, String content) {
+            this(capabilityId, input, callId, content, null);
+        }
+        public ToolCall { assistantMessage = assistantMessage == null ? null : assistantMessage.deepCopy(); }
+        @Override public JsonNode assistantMessage() { return assistantMessage == null ? null : assistantMessage.deepCopy(); }
         public ToolCall(String capabilityId, JsonNode input) { this(capabilityId, input, UUID.randomUUID().toString(), ""); }
     }
-    record PrimitiveCall(String primitiveId, JsonNode input, String callId, String content) implements Turn {
+    record PrimitiveCall(String primitiveId, JsonNode input, String callId, String content, JsonNode assistantMessage) implements Turn {
+        public PrimitiveCall(String primitiveId, JsonNode input, String callId, String content) {
+            this(primitiveId, input, callId, content, null);
+        }
+        public PrimitiveCall { assistantMessage = assistantMessage == null ? null : assistantMessage.deepCopy(); }
+        @Override public JsonNode assistantMessage() { return assistantMessage == null ? null : assistantMessage.deepCopy(); }
         public PrimitiveCall(String primitiveId, JsonNode input) { this(primitiveId, input, UUID.randomUUID().toString(), ""); }
     }
     /** Request-local transcript entry, including rejected attempts; not public provenance. */
-    record ToolResult(Kind kind, String id, JsonNode output, JsonNode input, String callId, String content) {
+    record ToolResult(Kind kind, String id, JsonNode output, JsonNode input, String callId, String content, JsonNode assistantMessage) {
+        public ToolResult(Kind kind, String id, JsonNode output, JsonNode input, String callId, String content) {
+            this(kind, id, output, input, callId, content, null);
+        }
         public ToolResult(Kind kind, String id, JsonNode output) {
             this(kind, id, output, new tools.jackson.databind.json.JsonMapper().createObjectNode(), UUID.randomUUID().toString(), "");
         }
-        public ToolResult { output = output.deepCopy(); input = input.deepCopy(); }
+        public ToolResult {
+            output = output.deepCopy(); input = input.deepCopy();
+            assistantMessage = assistantMessage == null ? null : assistantMessage.deepCopy();
+        }
+        @Override public JsonNode assistantMessage() { return assistantMessage == null ? null : assistantMessage.deepCopy(); }
         @Override public JsonNode output() { return output.deepCopy(); }
         @Override public JsonNode input() { return input.deepCopy(); }
     }
