@@ -78,14 +78,21 @@ class ArchitectureTests {
 
     @Test
     void aiUsesCoreGovernanceWithoutBusinessInternalsOrExternalTools() throws Exception {
-        var modelTransport = AI.resolve(JAVA_SOURCES + "/com/alxarafe/erbas/ai/infrastructure/OllamaAssistantProvider.java");
+        var infrastructure = AI.resolve(JAVA_SOURCES + "/com/alxarafe/erbas/ai/infrastructure");
+        var modelTransport = infrastructure.resolve("HttpAssistantProvider.java");
+        var endpointConfiguration = List.of(infrastructure.resolve("OllamaAssistantProvider.java"),
+                infrastructure.resolve("OpenAiCompatibleAssistantProvider.java"), infrastructure.resolve("AiConfiguration.java"));
         for (var file : files(AI.resolve("src/main"))) {
             assertThat(Files.readString(file)).as(file.toString()).doesNotContain(WMS_PACKAGE,
                     "UomCatalogue", "StorageAttributeCatalogue", "ItemFamilyCatalogue", "JdbcTemplate",
                     "RestTemplate", "WebClient", "java.sql.", "org.springframework.jdbc",
                     "org.springframework.ai", "com.openai", "io.modelcontextprotocol");
-            // Only the approved model adapter may use HTTP; business tools still execute through CORE.
-            if (!file.equals(modelTransport)) assertThat(Files.readString(file)).as(file.toString()).doesNotContain("java.net.");
+            // Only the shared model transport may use HTTP; wrappers/configuration can construct endpoint URIs.
+            if (!file.equals(modelTransport)) {
+                String source = Files.readString(file);
+                if (endpointConfiguration.contains(file)) source = source.replace("java.net.URI", "");
+                assertThat(source).as(file.toString()).doesNotContain("java.net.");
+            }
         }
         var orchestration = Files.readString(AI.resolve(JAVA_SOURCES + "/com/alxarafe/erbas/ai/AssistantInvocation.java"));
         assertThat(orchestration).contains("capabilities.invoke(", "discovery.effective(", "primitives.invoke(", "primitives.effective(");

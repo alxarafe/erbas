@@ -1,0 +1,519 @@
+{
+  "toolSchema": {
+    "type": "object",
+    "properties": {
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 2
+      }
+    },
+    "additionalProperties": false
+  },
+  "records": [
+    {
+      "code": "FIX-A",
+      "label": "Synthetic first record"
+    },
+    {
+      "code": "FIX-B",
+      "label": "Synthetic second record"
+    }
+  ],
+  "profiles": [
+    {
+      "id": "openai-compatible-chat-completions",
+      "path": "/v1/chat/completions",
+      "text": {
+        "request": {
+          "model": "fixture-model",
+          "stream": false,
+          "messages": [
+            {
+              "role": "system",
+              "content": "Use authorized READ results for synthetic record facts."
+            },
+            {
+              "role": "user",
+              "content": "Reply with a short greeting."
+            }
+          ]
+        },
+        "response": {
+          "choices": [
+            {
+              "message": {
+                "role": "assistant",
+                "content": "Hello from the synthetic fixture."
+              },
+              "finish_reason": "stop"
+            }
+          ]
+        }
+      },
+      "read": {
+        "request": {
+          "model": "fixture-model",
+          "stream": false,
+          "messages": [
+            {
+              "role": "system",
+              "content": "Use authorized READ results for synthetic record facts."
+            },
+            {
+              "role": "user",
+              "content": "List the synthetic records."
+            }
+          ],
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "fixture_records_list",
+                "description": "Read the synthetic records.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 2
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          ]
+        },
+        "response": {
+          "choices": [
+            {
+              "message": {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                  {
+                    "id": "fixture-call-1",
+                    "function": {
+                      "name": "fixture_records_list",
+                      "arguments": "{\"limit\":2}"
+                    },
+                    "type": "function"
+                  }
+                ]
+              },
+              "finish_reason": "tool_calls"
+            }
+          ]
+        },
+        "followUp": {
+          "model": "fixture-model",
+          "stream": false,
+          "messages": [
+            {
+              "role": "system",
+              "content": "Use authorized READ results for synthetic record facts."
+            },
+            {
+              "role": "user",
+              "content": "List the synthetic records."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "fixture-call-1",
+                  "function": {
+                    "name": "fixture_records_list",
+                    "arguments": "{\"limit\":2}"
+                  },
+                  "type": "function"
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "{\"items\":[{\"code\":\"FIX-A\",\"label\":\"Synthetic first record\"},{\"code\":\"FIX-B\",\"label\":\"Synthetic second record\"}]}",
+              "tool_call_id": "fixture-call-1"
+            }
+          ],
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "fixture_records_list",
+                "description": "Read the synthetic records.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 2
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          ]
+        },
+        "final": {
+          "choices": [
+            {
+              "message": {
+                "role": "assistant",
+                "content": "FIX-A: Synthetic first record; FIX-B: Synthetic second record."
+              },
+              "finish_reason": "stop"
+            }
+          ]
+        }
+      },
+      "invalidArguments": {
+        "response": {
+          "choices": [
+            {
+              "message": {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                  {
+                    "id": "fixture-call-1",
+                    "function": {
+                      "name": "fixture_records_list",
+                      "arguments": "{\"limit\":\"2\"}"
+                    },
+                    "type": "function"
+                  }
+                ]
+              },
+              "finish_reason": "tool_calls"
+            }
+          ]
+        }
+      },
+      "malformedResponses": [
+        {},
+        {
+          "choices": [
+            {
+              "message": {
+                "role": "assistant",
+                "content": ""
+              },
+              "finish_reason": "stop"
+            }
+          ]
+        },
+        {
+          "choices": [
+            {
+              "message": {
+                "role": "user",
+                "content": "Wrong role"
+              },
+              "finish_reason": "stop"
+            }
+          ]
+        },
+        {
+          "error": {
+            "message": "Synthetic service unavailable",
+            "type": "server_error",
+            "code": "synthetic_unavailable"
+          }
+        },
+        {
+          "choices": [
+            {
+              "message": {
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "function": {
+                      "name": "fixture_records_list",
+                      "arguments": "not-json"
+                    }
+                  }
+                ]
+              },
+              "finish_reason": "tool_calls"
+            }
+          ]
+        },
+        {
+          "choices": [
+            {
+              "message": {
+                "role": "assistant",
+                "content": "Truncated"
+              },
+              "finish_reason": "length"
+            }
+          ]
+        }
+      ],
+      "httpErrors": [
+        {
+          "status": 401,
+          "body": {
+            "error": {
+              "message": "Synthetic service unavailable",
+              "type": "server_error",
+              "code": "synthetic_unavailable"
+            }
+          }
+        },
+        {
+          "status": 429,
+          "body": {
+            "error": {
+              "message": "Synthetic service unavailable",
+              "type": "server_error",
+              "code": "synthetic_unavailable"
+            }
+          }
+        },
+        {
+          "status": 503,
+          "body": {
+            "error": {
+              "message": "Synthetic service unavailable",
+              "type": "server_error",
+              "code": "synthetic_unavailable"
+            }
+          }
+        }
+      ],
+      "transportFailure": "connection-closed"
+    },
+    {
+      "id": "ollama-native",
+      "path": "/api/chat",
+      "text": {
+        "request": {
+          "model": "fixture-model",
+          "stream": false,
+          "messages": [
+            {
+              "role": "system",
+              "content": "Use authorized READ results for synthetic record facts."
+            },
+            {
+              "role": "user",
+              "content": "Reply with a short greeting."
+            }
+          ]
+        },
+        "response": {
+          "done": true,
+          "message": {
+            "role": "assistant",
+            "content": "Hello from the synthetic fixture."
+          }
+        }
+      },
+      "read": {
+        "request": {
+          "model": "fixture-model",
+          "stream": false,
+          "messages": [
+            {
+              "role": "system",
+              "content": "Use authorized READ results for synthetic record facts."
+            },
+            {
+              "role": "user",
+              "content": "List the synthetic records."
+            }
+          ],
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "fixture_records_list",
+                "description": "Read the synthetic records.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 2
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          ]
+        },
+        "response": {
+          "done": true,
+          "message": {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "fixture-call-1",
+                "function": {
+                  "name": "fixture_records_list",
+                  "arguments": {
+                    "limit": 2
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "followUp": {
+          "model": "fixture-model",
+          "stream": false,
+          "messages": [
+            {
+              "role": "system",
+              "content": "Use authorized READ results for synthetic record facts."
+            },
+            {
+              "role": "user",
+              "content": "List the synthetic records."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "fixture-call-1",
+                  "function": {
+                    "name": "fixture_records_list",
+                    "arguments": {
+                      "limit": 2
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "{\"items\":[{\"code\":\"FIX-A\",\"label\":\"Synthetic first record\"},{\"code\":\"FIX-B\",\"label\":\"Synthetic second record\"}]}",
+              "tool_call_id": "fixture-call-1",
+              "tool_name": "fixture_records_list"
+            }
+          ],
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "fixture_records_list",
+                "description": "Read the synthetic records.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 2
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          ]
+        },
+        "final": {
+          "done": true,
+          "message": {
+            "role": "assistant",
+            "content": "FIX-A: Synthetic first record; FIX-B: Synthetic second record."
+          }
+        }
+      },
+      "invalidArguments": {
+        "response": {
+          "done": true,
+          "message": {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "fixture-call-1",
+                "function": {
+                  "name": "fixture_records_list",
+                  "arguments": {
+                    "limit": "2"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "malformedResponses": [
+        {},
+        {
+          "done": true,
+          "message": {
+            "role": "assistant",
+            "content": ""
+          }
+        },
+        {
+          "done": true,
+          "message": {
+            "role": "user",
+            "content": "Wrong role"
+          }
+        },
+        {
+          "error": "Synthetic service unavailable"
+        },
+        {
+          "done": true,
+          "message": {
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "function": {
+                  "name": "fixture_records_list",
+                  "arguments": "not-json"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "done": false,
+          "message": {
+            "role": "assistant",
+            "content": "Incomplete"
+          }
+        }
+      ],
+      "httpErrors": [
+        {
+          "status": 401,
+          "body": {
+            "error": "Synthetic service unavailable"
+          }
+        },
+        {
+          "status": 429,
+          "body": {
+            "error": "Synthetic service unavailable"
+          }
+        },
+        {
+          "status": 503,
+          "body": {
+            "error": "Synthetic service unavailable"
+          }
+        }
+      ],
+      "transportFailure": "connection-closed"
+    }
+  ]
+}

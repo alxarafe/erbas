@@ -108,14 +108,14 @@ public final class AssistantInvocation {
                     if (INVALID_REQUEST.equals(execution.errorCode()) && advertised(tools, AiAssistantProvider.Kind.CAPABILITY, call.capabilityId())) {
                         if (attempts >= MAX_TOOL_CALLS) return Result.error(FAILED);
                         results.add(new AiAssistantProvider.ToolResult(AiAssistantProvider.Kind.CAPABILITY, call.capabilityId(),
-                                invalidArguments(), call.input(), call.callId(), call.content()));
+                                invalidArguments(), call.input(), call.callId(), call.content(), call.assistantMessage()));
                         continue;
                     }
                     if (execution.errorCode() != null || execution.envelope() == null) return Result.error(FAILED);
                     var envelope = execution.envelope();
                     usage = new AiAssistantAuditSink.CapabilityUsage(envelope.capabilityId(), envelope.invocationId());
                     toolResult = new AiAssistantProvider.ToolResult(AiAssistantProvider.Kind.CAPABILITY, envelope.capabilityId(),
-                            json.valueToTree(envelope.output()), call.input(), call.callId(), call.content());
+                            json.valueToTree(envelope.output()), call.input(), call.callId(), call.content(), call.assistantMessage());
                 } else if (turn instanceof AiAssistantProvider.PrimitiveCall call) {
                     var execution = primitives.invoke(user.userId(), call.primitiveId(), call.input(),
                             new ReadPrimitiveRouter.Origin(id, null, attempts));
@@ -123,14 +123,14 @@ public final class AssistantInvocation {
                             && advertised(tools, AiAssistantProvider.Kind.PRIMITIVE, call.primitiveId())) {
                         if (attempts >= MAX_TOOL_CALLS) return Result.error(FAILED);
                         results.add(new AiAssistantProvider.ToolResult(AiAssistantProvider.Kind.PRIMITIVE, call.primitiveId(),
-                                invalidArguments(), call.input(), call.callId(), call.content()));
+                                invalidArguments(), call.input(), call.callId(), call.content(), call.assistantMessage()));
                         continue;
                     }
                     if (execution.failure() != null || execution.execution() == null) return Result.error(FAILED);
                     var envelope = execution.execution();
                     usage = new AiAssistantAuditSink.PrimitiveUsage(envelope.primitiveId(), envelope.invocationId());
                     toolResult = new AiAssistantProvider.ToolResult(AiAssistantProvider.Kind.PRIMITIVE, envelope.primitiveId(), envelope.output(),
-                            call.input(), call.callId(), call.content());
+                            call.input(), call.callId(), call.content(), call.assistantMessage());
                 } else return Result.error(FAILED);
                 if (usage.invocationId() == null || usage.invocationId().isBlank() || id.equals(usage.invocationId())
                         || !coreIds.add(usage.invocationId())) return Result.error(FAILED);
