@@ -5,6 +5,7 @@
 **/target/
 
 # IDE and operating-system files
+.openidea/
 /.idea/
 /.vscode/
 *.iml
