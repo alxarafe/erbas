@@ -171,6 +171,21 @@ class ControlledReadToolsTests {
         assertThat(primitiveAudit.size() + capabilityAudit.size()).isEqualTo(AssistantInvocation.MAX_TOOL_CALLS);
         assertThat(aiAudit.getLast().toolsUsed()).hasSize(AssistantInvocation.MAX_TOOL_CALLS);
     }
+    @Test void rejectedPrimitiveRetainsArgumentsAndItsAttemptSequenceBeforeCorrectedExecution() {
+        var service = assistant((message, tools, results) -> {
+            if (results.isEmpty()) return new AiAssistantProvider.PrimitiveCall(PRIMITIVE, json.readTree("{\"extra\":true}"));
+            assertThat(results.getFirst().output().path("status").asString()).isEqualTo(AiAssistantProvider.INVALID_ARGUMENTS);
+            assertThat(results.getFirst().input()).isEqualTo(json.readTree("{\"extra\":true}"));
+            if (results.size() == 1) return call(PRIMITIVE);
+            return new AiAssistantProvider.Answer(results.getLast().output().path("value").asString());
+        });
+        var response = service.invoke(ADMIN, () -> BODY);
+        assertThat(response.errorCode()).isNull();
+        assertThat(response.envelope().answer()).isEqualTo(PRIVATE_RESULT);
+        assertThat(response.envelope().toolsUsed()).hasSize(1);
+        assertThat(executions).containsExactly(PRIMITIVE);
+        assertThat(primitiveAudit).extracting(entry -> entry.origin().sequence()).containsExactly(1, 2);
+    }
     private void assertFailure(AssistantInvocation.Result response) {
         assertThat(response.errorCode()).isEqualTo(AssistantInvocation.FAILED);
         assertThat(response.envelope()).isNull();

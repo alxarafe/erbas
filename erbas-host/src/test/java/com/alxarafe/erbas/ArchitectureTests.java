@@ -78,11 +78,14 @@ class ArchitectureTests {
 
     @Test
     void aiUsesCoreGovernanceWithoutBusinessInternalsOrExternalTools() throws Exception {
+        var modelTransport = AI.resolve(JAVA_SOURCES + "/com/alxarafe/erbas/ai/infrastructure/OllamaAssistantProvider.java");
         for (var file : files(AI.resolve("src/main"))) {
             assertThat(Files.readString(file)).as(file.toString()).doesNotContain(WMS_PACKAGE,
                     "UomCatalogue", "StorageAttributeCatalogue", "ItemFamilyCatalogue", "JdbcTemplate",
-                    "RestTemplate", "WebClient", "java.net.", "java.sql.", "org.springframework.jdbc",
+                    "RestTemplate", "WebClient", "java.sql.", "org.springframework.jdbc",
                     "org.springframework.ai", "com.openai", "io.modelcontextprotocol");
+            // Only the approved model adapter may use HTTP; business tools still execute through CORE.
+            if (!file.equals(modelTransport)) assertThat(Files.readString(file)).as(file.toString()).doesNotContain("java.net.");
         }
         var orchestration = Files.readString(AI.resolve(JAVA_SOURCES + "/com/alxarafe/erbas/ai/AssistantInvocation.java"));
         assertThat(orchestration).contains("capabilities.invoke(", "discovery.effective(", "primitives.invoke(", "primitives.effective(");

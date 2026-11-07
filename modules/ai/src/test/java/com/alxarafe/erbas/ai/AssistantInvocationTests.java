@@ -192,6 +192,54 @@ class AssistantInvocationTests {
         assertThat(coreAudit).hasSize(AssistantInvocation.MAX_TOOL_CALLS);
         assertThat(aiAudit.getLast().toolsUsed()).hasSize(AssistantInvocation.MAX_TOOL_CALLS);
     }
+    @Test void rejectedArgumentsCanBeCorrectedWithoutCoercionAndOnlySuccessHasProvenance() {
+        var invalid = json.readTree("{\"limit\":\"1000\",\"offset\":\"0\"}");
+        var service = assistant((message, tools, results) -> {
+            if (results.isEmpty()) return new AiAssistantProvider.ToolCall(FIRST, invalid, "bad-call", "Read current data");
+            var rejected = results.getFirst();
+            assertThat(rejected.input()).isEqualTo(invalid);
+            assertThat(rejected.callId()).isEqualTo("bad-call");
+            assertThat(rejected.output().path("status").asString()).isEqualTo(AiAssistantProvider.INVALID_ARGUMENTS);
+            if (results.size() == 1) return new AiAssistantProvider.ToolCall(FIRST, json.createObjectNode(), "corrected-call", "Correct input");
+            assertThat(results.getLast().callId()).isEqualTo("corrected-call");
+            return new AiAssistantProvider.Answer(results.getLast().output().path("value").asString());
+        });
+        var response = service.invoke(ADMIN, () -> BODY);
+        assertThat(response.errorCode()).isNull();
+        assertThat(response.envelope().answer()).isEqualTo(PRIVATE_DATA);
+        assertThat(first.executions).isEqualTo(1);
+        assertThat(coreAudit).extracting(CapabilityInvocationAuditSink.Entry::outcome)
+                .containsExactly(CapabilityInvocationAuditSink.Outcome.denied, CapabilityInvocationAuditSink.Outcome.completed);
+        assertThat(response.envelope().toolsUsed()).hasSize(1);
+        assertThat(response.envelope().toolsUsed().getFirst().invocationId()).isEqualTo(coreAudit.getLast().invocationId());
+        assertThat(aiAudit.getLast().toString()).doesNotContain(PRIVATE_DATA, "1000", "Read current data");
+    }
+    @Test void everyRejectedAttemptCountsAgainstBudgetAndCannotLoopForever() {
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        var service = assistant((message, tools, results) -> {
+            calls.incrementAndGet();
+            return new AiAssistantProvider.ToolCall(FIRST, json.readTree("{\"limit\":\"50\"}"));
+        });
+        assertSafeFailure(service.invoke(ADMIN, () -> BODY));
+        assertThat(calls.get()).isEqualTo(AssistantInvocation.MAX_TOOL_CALLS);
+        assertThat(coreAudit).hasSize(AssistantInvocation.MAX_TOOL_CALLS);
+        assertThat(first.executions).isZero();
+        assertThat(aiAudit.getLast().toolsUsed()).isEmpty();
+    }
+    @Test void permissionRevokedBetweenRejectedAndCorrectedAttemptTerminatesWithoutRetry() {
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        var service = assistant((message, tools, results) -> {
+            calls.incrementAndGet();
+            if (results.isEmpty()) return new AiAssistantProvider.ToolCall(FIRST, json.readTree("{\"limit\":0}"));
+            grants.clear();
+            return new AiAssistantProvider.ToolCall(FIRST, json.createObjectNode());
+        });
+        assertSafeFailure(service.invoke(ADMIN, () -> BODY));
+        assertThat(calls.get()).isEqualTo(2);
+        assertThat(coreAudit).hasSize(2);
+        assertThat(coreAudit.getLast().errorCode()).isEqualTo(CapabilityInvocation.NOT_FOUND);
+        assertThat(first.executions).isZero();
+    }
     @Test void successfulToolBeforeFailureIsAuditedButNoFailurePayloadIsPublished() {
         var assistant = assistant((message, tools, results) -> {
             if (results.isEmpty()) return new AiAssistantProvider.ToolCall(FIRST, json.createObjectNode());

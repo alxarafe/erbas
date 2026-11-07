@@ -22,7 +22,9 @@ public class AiConfiguration {
         return user -> user != null && user.enabled() && user.admin();
     }
     @Bean @Profile("!" + VALIDATION_PROFILE)
-    public AiAssistantProvider unavailableAssistantProvider() { return new UnavailableAssistantProvider(); }
+    public AiAssistantProvider normalAssistantProvider(org.springframework.core.env.Environment environment) {
+        return OllamaAssistantProvider.configured(environment);
+    }
     @Bean @Profile(VALIDATION_PROFILE)
     public AiAssistantProvider deterministicAssistantProvider(MessageSource messages) {
         return new DeterministicAssistantProvider(messages);
