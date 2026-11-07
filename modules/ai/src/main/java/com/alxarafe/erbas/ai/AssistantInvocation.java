@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import com.alxarafe.erbas.ai.http.AssistantJson;
@@ -31,6 +32,8 @@ public final class AssistantInvocation {
     public static final String UNAVAILABLE = "assistant_unavailable";
     public static final String FAILED = "assistant_execution_failed";
     public static final int MAX_TOOL_CALLS = 8;
+    private static final String INVALID_ARGUMENTS_FEEDBACK = "Use only declared fields and JSON types. Integer parameters must be JSON numbers, not strings. "
+            + "Respect the declared bounds; optional parameters may be omitted. Submit a corrected READ call.";
     private final AiAssistantPermission permission;
     private final ModuleStateService states;
     private final CapabilityDiscovery discovery;
@@ -86,6 +89,7 @@ public final class AssistantInvocation {
             List<AiAssistantAuditSink.ToolUsage> used) {
         var results = new ArrayList<AiAssistantProvider.ToolResult>();
         var coreIds = new HashSet<String>();
+        int attempts = 0;
         try {
             while (true) {
                 var turn = provider.respond(message, List.copyOf(tools), List.copyOf(results));
@@ -93,25 +97,40 @@ public final class AssistantInvocation {
                     return AiText.validAnswer(answer.text()) ? new Result(new Envelope(id, answer.text(), used), null)
                             : Result.error(FAILED);
                 }
-                if (used.size() >= MAX_TOOL_CALLS) return Result.error(FAILED);
+                if (attempts >= MAX_TOOL_CALLS) return Result.error(FAILED);
+                attempts++;
                 AiAssistantAuditSink.ToolUsage usage;
                 AiAssistantProvider.ToolResult toolResult;
                 if (turn instanceof AiAssistantProvider.ToolCall call) {
                     // CORE-CAP-002 retains its own resolution, validation, execution and audit.
                     var execution = capabilities.invoke(currentIdentity.apply(user), call.capabilityId(), () -> json.writeValueAsString(
                             Collections.singletonMap(CapabilityInvocationJson.INPUT, call.input())));
+                    if (INVALID_REQUEST.equals(execution.errorCode()) && advertised(tools, AiAssistantProvider.Kind.CAPABILITY, call.capabilityId())) {
+                        if (attempts >= MAX_TOOL_CALLS) return Result.error(FAILED);
+                        results.add(new AiAssistantProvider.ToolResult(AiAssistantProvider.Kind.CAPABILITY, call.capabilityId(),
+                                invalidArguments(), call.input(), call.callId(), call.content()));
+                        continue;
+                    }
                     if (execution.errorCode() != null || execution.envelope() == null) return Result.error(FAILED);
                     var envelope = execution.envelope();
                     usage = new AiAssistantAuditSink.CapabilityUsage(envelope.capabilityId(), envelope.invocationId());
                     toolResult = new AiAssistantProvider.ToolResult(AiAssistantProvider.Kind.CAPABILITY, envelope.capabilityId(),
-                            json.valueToTree(envelope.output()));
+                            json.valueToTree(envelope.output()), call.input(), call.callId(), call.content());
                 } else if (turn instanceof AiAssistantProvider.PrimitiveCall call) {
                     var execution = primitives.invoke(user.userId(), call.primitiveId(), call.input(),
-                            new ReadPrimitiveRouter.Origin(id, null, used.size() + 1));
+                            new ReadPrimitiveRouter.Origin(id, null, attempts));
+                    if (execution.failure() == ReadPrimitiveRouter.Failure.INVALID_INPUT
+                            && advertised(tools, AiAssistantProvider.Kind.PRIMITIVE, call.primitiveId())) {
+                        if (attempts >= MAX_TOOL_CALLS) return Result.error(FAILED);
+                        results.add(new AiAssistantProvider.ToolResult(AiAssistantProvider.Kind.PRIMITIVE, call.primitiveId(),
+                                invalidArguments(), call.input(), call.callId(), call.content()));
+                        continue;
+                    }
                     if (execution.failure() != null || execution.execution() == null) return Result.error(FAILED);
                     var envelope = execution.execution();
                     usage = new AiAssistantAuditSink.PrimitiveUsage(envelope.primitiveId(), envelope.invocationId());
-                    toolResult = new AiAssistantProvider.ToolResult(AiAssistantProvider.Kind.PRIMITIVE, envelope.primitiveId(), envelope.output());
+                    toolResult = new AiAssistantProvider.ToolResult(AiAssistantProvider.Kind.PRIMITIVE, envelope.primitiveId(), envelope.output(),
+                            call.input(), call.callId(), call.content());
                 } else return Result.error(FAILED);
                 if (usage.invocationId() == null || usage.invocationId().isBlank() || id.equals(usage.invocationId())
                         || !coreIds.add(usage.invocationId())) return Result.error(FAILED);
@@ -120,6 +139,12 @@ public final class AssistantInvocation {
             }
         } catch (AiAssistantProvider.Unavailable temporary) { return Result.error(UNAVAILABLE); }
         catch (RuntimeException failure) { return Result.error(FAILED); }
+    }
+    private boolean advertised(List<AiAssistantProvider.Tool> tools, AiAssistantProvider.Kind kind, String id) {
+        return tools.stream().anyMatch(tool -> tool.kind() == kind && tool.id().equals(id));
+    }
+    private tools.jackson.databind.JsonNode invalidArguments() {
+        return json.valueToTree(Map.of("status", AiAssistantProvider.INVALID_ARGUMENTS, "message", INVALID_ARGUMENTS_FEEDBACK));
     }
     public record Envelope(String invocationId, String answer, List<AiAssistantAuditSink.ToolUsage> toolsUsed) {
         public Envelope { toolsUsed = List.copyOf(toolsUsed); }

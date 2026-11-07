@@ -113,6 +113,64 @@ class AssistantIntegrationIT {
         }
         http.close();
     }
+    @Test void ollamaAdapterReadsPersistedWmsThroughCoreAndKeepsProvenance() throws Exception {
+        var server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        var failure = new AtomicReference<Throwable>();
+        server.createContext(com.alxarafe.erbas.ai.infrastructure.OllamaAssistantProvider.CHAT_PATH, exchange -> {
+            try {
+                var request = json.readTree(exchange.getRequestBody().readAllBytes());
+                var messages = request.path("messages");
+                Object reply;
+                if (messages.size() == 2 || messages.size() == 4) {
+                    if (messages.size() == 4) {
+                        assertThat(json.readTree(messages.get(3).path("content").asString()).path("status").asString())
+                                .isEqualTo(AiAssistantProvider.INVALID_ARGUMENTS);
+                        assertThat(messages.get(2).path("tool_calls").get(0).path("id"))
+                                .isEqualTo(messages.get(3).path("tool_call_id"));
+                    }
+                    String name = null;
+                    for (var tool : request.path("tools")) {
+                        var function = tool.path("function");
+                        if (function.path("description").asString().contains("units of measure")) {
+                            name = function.path("name").asString();
+                            assertThat(function.path("parameters").has("$ref")).isFalse();
+                            break;
+                        }
+                    }
+                    assertThat(name).isNotNull();
+                    reply = Map.of("tool_calls", List.of(Map.of("function", Map.of("name", name, "arguments",
+                            messages.size() == 2 ? Map.of("limit", "50") : Map.of()))));
+                } else {
+                    // The simulated model echoes evidence received from the actual CORE call, not its own fixtures.
+                    reply = Map.of("content", messages.get(messages.size() - 1).path("content").asString());
+                }
+                byte[] bytes = json.writeValueAsBytes(Map.of("done", true, "message", reply));
+                exchange.sendResponseHeaders(HttpStatus.OK.value(), bytes.length);
+                try (var output = exchange.getResponseBody()) { output.write(bytes); }
+            } catch (Throwable problem) {
+                failure.set(problem); exchange.sendResponseHeaders(HttpStatus.INTERNAL_SERVER_ERROR.value(), -1);
+            } finally { exchange.close(); }
+        });
+        server.start();
+        provider.override.set(new com.alxarafe.erbas.ai.infrastructure.OllamaAssistantProvider(
+                URI.create("http://127.0.0.1:" + server.getAddress().getPort()
+                        + com.alxarafe.erbas.ai.infrastructure.OllamaAssistantProvider.CHAT_PATH), "synthetic-test-model"));
+        try {
+            for (String description : List.of("Ollama persisted first", "Ollama persisted changed")) {
+                jdbc.update("UPDATE wms_uoms SET description = ? WHERE id = ?", description, ownedRows.get("wms_uoms"));
+                var response = checked(invoke(admin, body(ONE_READ_REQUEST)), HttpStatus.OK);
+                assertThat(failure.get()).isNull();
+                assertThat(response.path("answer").asString()).contains(description);
+                var usage = response.path("toolsUsed");
+                assertThat(usage.size()).isEqualTo(1);
+                assertThat(usage.get(0).path("capabilityId").asString()).isEqualTo(UOMS_LIST);
+                assertThat(usage.get(0).path("invocationId").asString()).isEqualTo(coreAudit.entries.getLast().invocationId());
+            }
+        } finally {
+            server.stop(0);
+            jdbc.update("UPDATE wms_uoms SET description = ? WHERE id = ?", "Persisted AI unit", ownedRows.get("wms_uoms"));
+        }
+    }
     @Test void aiIsAvailableEnabledAndNormalModuleAdministrationRestoresItWithoutRestart() throws Exception {
         assertThat(modules.modules()).extracting(module -> module.descriptor().id()).contains(AiModule.ID);
         assertThat(states.isEnabled(AiModule.ID)).isTrue();

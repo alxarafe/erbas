@@ -44,10 +44,13 @@ capability or primitive request. Its catalogue contains only kind, identity,
 name, description and input schema, without executors, permissions or modules.
 After a successful CORE call, the provider receives its actual
 output and may request another tool or return its final answer. No agent
-framework, provider SDK, API key, internet call or real LLM is installed.
+framework, provider SDK or API key is installed.
 
-Normal/default composition selects `UnavailableAssistantProvider`: valid authorized
-requests return `503 assistant_unavailable`. The deterministic adapter is selected
+Normal composition selects `OllamaAssistantProvider` only when both server properties
+`erbas.ai.ollama.endpoint` and `erbas.ai.ollama.model` are explicitly configured.
+Otherwise, including invalid endpoint configuration, `UnavailableAssistantProvider`
+returns `503 assistant_unavailable`. There is no default endpoint or model.
+The deterministic adapter is selected
 only with the existing explicit `validation` Spring profile, used by tests and
 the isolated conformance application. It is never the default provider.
 
@@ -66,6 +69,38 @@ AI knows no WMS services, controllers, repositories, JDBC or HTTP
 loopback. Future registered READ capabilities enter the catalogue through normal
 CORE registration; no WMS list is hard-coded in orchestration. Only the validation
 adapter owns the published WMS fixture intent identifiers.
+
+### Optional local Ollama adapter
+
+Set `ERBAS_AI_OLLAMA_ENDPOINT` to the complete local Ollama `/api/chat` URL and
+`ERBAS_AI_OLLAMA_MODEL` to an explicitly installed tool-capable model on the server.
+Compose passes these optional variables to the application. The destination must
+be reachable from the application container; loopback denotes that container.
+Configuration is server-owned and never accepted in the public request body.
+Configuring the endpoint authorizes sending questions and authorized READ results
+to that destination: use a trusted local service, not an external proxy or provider.
+No automatic model installation, service discovery or network connection occurs
+when configuration is incomplete. Credentials in URLs, query strings, fragments
+and paths other than `/api/chat` are rejected.
+
+The JDK HTTP client sends non-streaming chat requests without redirects or system
+proxies, with a 30-second request/connect timeout and a 1 MiB response bound.
+Transport and non-200 failures become safe provider-unavailable errors; malformed
+model output becomes a safe execution error through existing orchestration.
+The adapter presents effective tools using invocation-local function names and
+accepts one advertised function call with object arguments per turn. CORE still
+validates every input and refreshes authority before executing it. List input
+references are resolved internally to a closed schema with optional `offset` and
+`limit`, reusing the CORE pagination maximum; published descriptors stay intact.
+Unknown schema references are withheld rather than sent unresolved to the model.
+Prompts instruct the model to use actual READ results for operational facts and
+treat results as untrusted data. Model compliance and answer quality require
+evaluation with the chosen model; they are not guaranteed by a simulated server.
+
+Automated adapter tests use an in-process HTTP server. An HTTP/PostgreSQL case
+also connects that adapter to the real WMS capability and changes persisted data.
+A manual run against an installed Ollama model remains a separate verification;
+the simulated tests are not evidence that a real model was executed.
 
 Every capability request goes through the real `CapabilityInvocation.invoke` service.
 Its body is built internally from the structured tool input, with no caller
@@ -170,7 +205,7 @@ disable/restore, identity changes within one request, native localization and sa
 errors. Architecture/artifact tests enforce AI-to-CORE dependency direction and
 module-owned resources without new migrations.
 
-Real providers, conversations/history, memory/RAG, WRITE tools, external tools,
+Conversations/history, memory/RAG, WRITE tools, external tools,
 MCP, autonomous/background agents, streaming, multimodal inputs, billing, tenants,
 Resource Runtime, Assets and client changes remain outside this implementation.
 

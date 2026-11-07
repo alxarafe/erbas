@@ -15,6 +15,15 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 
 class AiConfigurationTests {
+    @Test void completeServerConfigurationSelectsOllamaOnlyOutsideValidation() {
+        for (String profile : List.of("normal", VALIDATION_PROFILE)) {
+            try (var context = configuredContext(profile)) {
+                assertThat(context.getBean(AiAssistantProvider.class)).isInstanceOf(
+                        VALIDATION_PROFILE.equals(profile) ? DeterministicAssistantProvider.class : OllamaAssistantProvider.class);
+                assertThat(context.getBeansOfType(AiAssistantProvider.class)).hasSize(1);
+            }
+        }
+    }
     @Test void normalCompositionUsesSafeUnavailableProvider() {
         try (var context = context()) {
             assertThat(context.getBean(AiAssistantProvider.class)).isInstanceOf(UnavailableAssistantProvider.class);
@@ -38,7 +47,16 @@ class AiConfigurationTests {
         assertThat(policy).isNotInstanceOf(CapabilityPermissionPolicy.class);
     }
     private AnnotationConfigApplicationContext context(String... profiles) {
+        return context(false, profiles);
+    }
+    private AnnotationConfigApplicationContext configuredContext(String... profiles) {
+        return context(true, profiles);
+    }
+    private AnnotationConfigApplicationContext context(boolean configured, String... profiles) {
         var context = new AnnotationConfigApplicationContext();
+        if (configured) context.getEnvironment().getPropertySources().addFirst(new org.springframework.core.env.MapPropertySource(
+                "ollama-test", java.util.Map.of(OllamaAssistantProvider.ENDPOINT_PROPERTY, "http://127.0.0.1:1/api/chat",
+                        OllamaAssistantProvider.MODEL_PROPERTY, "synthetic-test-model")));
         context.getEnvironment().setActiveProfiles(profiles);
         context.registerBean(ModuleStateService.class, () -> mock(ModuleStateService.class));
         context.registerBean(CapabilityDiscovery.class, () -> mock(CapabilityDiscovery.class));
