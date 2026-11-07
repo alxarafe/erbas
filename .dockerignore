@@ -1,5 +1,8 @@
 .git
 .gitignore
+# Exclude dotenv files at every depth, including the public template.
+**/.env
+**/.env.*
 private
 **/target
 README.md

@@ -83,6 +83,54 @@ See the native [Eclipse JRE setup](https://help.eclipse.org/latest/topic/org.ecl
 [Git ignore rules](https://git-scm.com/docs/gitignore) and
 [Docker build-context rules](https://docs.docker.com/build/concepts/context/).
 
+## Development environment configuration
+
+From the repository root, create your local configuration without overwriting an
+existing file:
+
+```bash
+cp -n .env.example .env
+```
+
+Edit `.env` with your own values. The template lists the actual Compose variables
+for the host port, persistent PostgreSQL, optional administrator bootstrap, token
+lifetime and AI provider. Set `ERBAS_DB_PASSWORD` before first startup. Use
+single quotes around values containing literal dollar signs or comment characters.
+Shell environment variables take precedence over `.env`.
+
+For Groq, use the template's `ERBAS_AI_PROVIDER_PROTOCOL=openai-compatible`,
+complete `https://api.groq.com/openai/v1/chat/completions` operation URL and a
+model available to your account. Enter your Groq key in
+`ERBAS_AI_PROVIDER_CREDENTIAL`, without a `Bearer ` prefix. A standalone
+`GROQ_API_KEY` is not consumed by this Compose file. The sample model is a
+configuration example, not a claim of tested real-provider compatibility.
+See Groq's [compatibility guide](https://console.groq.com/docs/openai) and
+[current models](https://console.groq.com/docs/models).
+For another compatible provider, change the endpoint, model and credential;
+keep HTTPS and `ERBAS_AI_PROVIDER_TRUSTED_LOCAL=false` for external services.
+See [AI configuration](ai.md#provider-configuration) for protocols and limits.
+
+To create an initial administrator, set `ERBAS_AUTH_BOOTSTRAP_ENABLED=true`,
+your `ERBAS_AUTH_BOOTSTRAP_EMAIL`, your `ERBAS_AUTH_BOOTSTRAP_PASSWORD` and
+`ERBAS_AUTH_BOOTSTRAP_ADMIN=true`. `ERBAS_CORE_ADMIN_PASSWORD` comes from .NET
+and does not configure Java; Java uses `ERBAS_AUTH_BOOTSTRAP_PASSWORD`.
+After successful creation, disable bootstrap and clear its password from `.env`.
+The user persists in PostgreSQL and can still log in. Bootstrap never changes
+an existing user's password: a conflicting existing account fails startup
+instead of being overwritten. See [local login accounts](#local-login-account).
+
+Start with `./bin/up` and stop with `./bin/down`; the PostgreSQL volume is
+retained. The default HTTP port is 48080. Currently `bin/up` exports that default
+unless the port is already set in the shell, so for a custom port also use
+`ERBAS_JAVA_PORT=49080 ./bin/up`; changing only its `.env` entry is insufficient
+for this script.
+
+Git ignores local dotenv files and Docker excludes them from build contexts;
+only the root `.env.example` is versioned. Never publish credentials or real
+`.env` files. Plain `docker compose config` and `config --environment` can
+print resolved secrets; avoid them in shared terminals, logs and reports.
+Use `docker compose config --quiet` to validate without printing values.
+
 ## Development
 
 ```bash
