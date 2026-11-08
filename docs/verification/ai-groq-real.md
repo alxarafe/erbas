@@ -102,8 +102,9 @@ executed by AI; fixture creation was performed directly through the public APIs.
 D was functionally incorrect despite HTTP 200 and a valid response envelope.
 It is an observed model behavior failure, not a demonstrated protocol failure:
 the model returned an answer without requesting tools, and no CORE call failed.
-Multiple READ execution in a single real-provider invocation remains unverified.
-No additional Groq calls were made to retry or reformulate D.
+Multiple READ execution in a single real-provider invocation was unverified at
+the end of this run. No additional Groq calls were made within GROQ-REAL-002 to
+retry or reformulate D. See the subsequent GROQ-MULTIREAD-001 observations below.
 
 A separate non-administrator test identity was created through `/api/users`
 (201). Login and `/api/auth/me` returned 200; AI, user listing and WMS unit
@@ -117,8 +118,74 @@ The six records and two associations listed above remain pending deliberate
 cleanup; they were not removed automatically. The temporary identity remains
 disabled. No previous business data was changed or deleted.
 
-**Assessment:** Groq connectivity, individual tool calling, successful CORE READ
+**Assessment at the end of GROQ-REAL-002:** Groq connectivity, individual tool calling, successful CORE READ
 execution, fidelity for these nonempty catalogues and effective authorization
 were demonstrated. Combined-summary quality failed; multi-READ behavior,
 larger pagination and other providers were not established. This evidence does
 not validate the entire multiprovider MVP or all model behavior.
+
+## GROQ-MULTIREAD-001: sequential READ calls
+
+On the same date, 06:44:47–06:44:51 UTC, the existing application was used without
+rebuilding or changing code, configuration or functional behavior. Health and
+administrator login returned 200. Effective configuration remained Groq,
+`openai-compatible`, `openai/gpt-oss-20b`, with a nonempty credential.
+The original evidence is `/tmp/erbas-groq-multiread-001-results.txt`, reviewed for
+sensitive data before incorporating this summary. No new provider calls were
+made to prepare this documentation.
+
+Exactly two HTTP invocations of the ERBAS assistant were made, without retries.
+The second was sent only after the first demonstrated both requested READs and
+faithful results. Each invocation allowed the application's existing bounded
+sequence of internal Groq turns, with at most one tool request per turn.
+
+| Invocation | Request | HTTP | Ordered `toolsUsed` capabilities | Functional result |
+| --- | --- | --- | --- | --- |
+| 1 | Explicitly obtain units and storage attributes using the available tools | 200 | `wms.uoms.list` → `wms.storage-attributes.list` | Both catalogues complete, with exact codes and descriptions/names in Spanish |
+| 2 | Repeat the original natural request for a summary of units, attributes and families | 200 | `wms.item-families.list` → `wms.storage-attributes.list` → `wms.uoms.list` | All three catalogues summarized faithfully in Spanish |
+
+AI invocation IDs were `62e74560-ee3c-4920-9ec3-0868de8222cc` (1) and
+`39b84693-68cd-4b8b-adb8-9fedce650a8d` (2). The following CORE IDs appeared in
+`toolsUsed` in actual execution order and in audit entries with
+`outcome=completed` and no error:
+
+| Invocation / sequence | Capability | CORE invocation ID |
+| --- | --- | --- |
+| 1 / 1 | `wms.uoms.list` | `88d09d81-64e7-4ffb-9363-184df1630146` |
+| 1 / 2 | `wms.storage-attributes.list` | `696b85e4-02ba-4076-9aef-e6ca02445037` |
+| 2 / 1 | `wms.item-families.list` | `0442d935-9255-4a86-95ee-abea694be026` |
+| 2 / 2 | `wms.storage-attributes.list` | `705c653d-3c0e-499e-bf53-4e7cc103073d` |
+| 2 / 3 | `wms.uoms.list` | `8e580086-d394-4880-9679-008c481c53ae` |
+
+All five CORE executions completed. The effective capability catalogue exposed
+the three WMS READ capabilities. API responses and direct PostgreSQL queries
+confirmed the same two records per catalogue listed above; every requested code
+and description/name appeared in the answers, without invented records. The six
+fixtures and their two associations were preserved. No WRITE capability was
+executed and no business data was created, modified or deleted during this run.
+
+The **seven HTTP requests to Groq are inferred**, not directly measured network
+traffic: two sequential tool turns plus a final-answer turn for invocation 1
+(three requests), and three tool turns plus a final-answer turn for invocation 2
+(four requests). The inference follows the adapter's one HTTP request per turn
+and the successful CORE audit sequence; the evidence contains no traffic capture
+or independent provider request counter.
+
+The earlier GROQ-REAL-002 D failure remains a valid historical observation. It
+did not recur in this subsequent natural-summary invocation. No adapter defect
+or need for a code correction has been demonstrated. These two successes show
+that sequential multi-READ is possible, not that the model will consistently
+choose the appropriate tools on every request.
+
+## Overall conclusion after these local trials
+
+**Verified for the tested Groq/model configuration:** real-provider connectivity,
+individual and multiple sequential READ calls, fidelity to persisted data,
+effective authorization (including denial and temporary-user revocation), and
+audit/provenance linking AI invocations to actual CORE executions.
+
+**Not verified:** statistical consistency of model behavior, catalogues requiring
+multiple pages, or real interoperability with other providers not exercised in
+these trials. The earlier model behavior failure is not erased by the later
+success. These observations remain separate from CI and shared-contract
+conformance and do not establish universal multiprovider compatibility.
