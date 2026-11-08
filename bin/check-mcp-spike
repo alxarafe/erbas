@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+[[ $# -eq 0 ]] || { echo 'Usage: ./bin/check-mcp-spike' >&2; exit 2; }
+for tool in docker timeout od tr awk; do command -v "$tool" >/dev/null; done
+readonly project="erbas-mcp-spike-$$-$RANDOM-$RANDOM"
+readonly image_version='0.1.0'
+[[ "$project" =~ ^erbas-mcp-spike-[0-9]+-[0-9]+-[0-9]+$ ]] || exit 2
+export ERBAS_MCP_ROOT="$root" ERBAS_MCP_RUN="$project"
+export ERBAS_MCP_IMAGE_VERSION="$image_version"
+export ERBAS_MCP_TEST_EMAIL='mcp-bootstrap@example.test'
+ERBAS_MCP_TEST_PASSWORD="$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')"
+export ERBAS_MCP_TEST_PASSWORD
+[[ "$ERBAS_MCP_TEST_PASSWORD" =~ ^[a-f0-9]{48}$ ]] || exit 2
+compose=(docker compose --env-file /dev/null --project-name "$project" --file "$root/experiments/mcp-stdio/compose.test.yaml")
+bounded() { local seconds="$1"; shift; timeout --kill-after=10s "$seconds" "$@"; }
+inventory() {
+    local kind="$1"
+    case "$kind" in
+        container) bounded 15 docker container ls --all --quiet --filter "label=com.docker.compose.project=$project" ;;
+        network|volume) bounded 15 docker "$kind" ls --quiet --filter "label=com.docker.compose.project=$project" ;;
+        *) return 2 ;;
+    esac
+}
+for kind in container network volume; do
+    ids="$(inventory "$kind")"
+    [[ -z "$ids" ]] || { echo 'ERROR: test project collision'; exit 2; }
+done
+for suffix in app verification adapter; do
+    ids="$(bounded 15 docker image ls --quiet "$project-$suffix:$image_version")"
+    [[ -z "$ids" ]] || { echo 'ERROR: test image collision'; exit 2; }
+done
+scratch="$(mktemp -d /tmp/erbas-mcp-evidence.XXXXXXXX)"
+chmod 700 "$scratch"
+cleanup() {
+    local result=$? cleanup_code=0 safe=1 ids id owner kind suffix template
+    trap - EXIT INT TERM
+    for kind in container network volume; do
+        if ids="$(inventory "$kind")"; then
+            for id in $ids; do
+                if [[ "$kind" == container ]]; then template='{{ index .Config.Labels "org.erbas.mcp-spike.run" }}'
+                else template='{{ index .Labels "org.erbas.mcp-spike.run" }}'; fi
+                owner="$(bounded 15 docker "$kind" inspect --format "$template" "$id")" || safe=0
+                [[ "$owner" == "$project" ]] || safe=0
+            done
+        else safe=0; fi
+    done
+    if [[ "$safe" == 1 ]]; then
+        bounded 90 "${compose[@]}" down --volumes --remove-orphans --timeout 10 || cleanup_code=1
+    else
+        echo 'ERROR: cleanup ownership could not be verified; resources retained.'
+        cleanup_code=1
+    fi
+    for suffix in app verification adapter; do
+        if ids="$(bounded 15 docker image ls --quiet "$project-$suffix:$image_version")"; then
+            if [[ -n "$ids" ]]; then
+                owner="$(bounded 15 docker image inspect --format '{{ index .Config.Labels "org.erbas.mcp-spike.run" }}' "$project-$suffix:$image_version")" || owner=''
+                if [[ "$owner" == "$project" ]]; then bounded 30 docker image rm "$project-$suffix:$image_version" || cleanup_code=1
+                else cleanup_code=1; fi
+            fi
+        else cleanup_code=1; fi
+    done
+    for suffix in app verification adapter; do
+        ids="$(bounded 15 docker image ls --quiet "$project-$suffix:$image_version")" || cleanup_code=1
+        [[ -z "$ids" ]] || cleanup_code=1
+    done
+    for kind in container network volume; do
+        ids="$(inventory "$kind")" || cleanup_code=1
+        [[ -z "$ids" ]] || cleanup_code=1
+    done
+    if [[ "$cleanup_code" == 0 ]]; then echo "MCP_CLEANUP_STATUS=passed RUN_ID=$project"; else result=1; fi
+    echo "MCP_CLEANUP_EXIT=$cleanup_code MCP_CHECK_EXIT=$result RUN_ID=$project"
+    echo "MCP_EVIDENCE_DIR=$scratch"
+    exit "$result"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+echo "MCP_RUN_ID=$project"
+bounded 30 "${compose[@]}" config --quiet
+bounded 900 "${compose[@]}" build verification app adapter-image
+bounded 150 "${compose[@]}" up --detach --wait --wait-timeout 120 postgres app
+bounded 15 "${compose[@]}" exec -T app curl --fail --silent --show-error --max-time 5 http://localhost:8080/health
+bounded 30 docker run --rm --network "${project}_default" \
+    --label "com.docker.compose.project=$project" --label "org.erbas.mcp-spike.run=$project" \
+    --env ERBAS_MCP_CORE_URL=http://app:8080 --env ERBAS_MCP_TOKEN=health-probe-only \
+    "$project-adapter:$image_version" --health
+echo 'MCP_RUNTIME_IMAGE_HEALTH=passed'
+bounded 180 "${compose[@]}" run --rm --no-deps --interactive=false -T verification > "$scratch/client.log" 2>&1
+cat "$scratch/client.log"
+awk '/^MCP_LIVE_RESULT=passed / { found=1 } END { exit !found }' "$scratch/client.log"
+bounded 20 "${compose[@]}" logs --no-color app > "$scratch/app.log"
+awk 'index($0,ENVIRON["ERBAS_MCP_TEST_PASSWORD"]) { bad=1 } END { exit bad }' "$scratch/app.log" "$scratch/client.log"
+echo 'MCP_BOOTSTRAP_SECRET_LOG_CHECK=passed'
+count=0
+while IFS= read -r invocation; do
+    [[ "$invocation" =~ ^[a-f0-9-]{36}$ ]] || exit 1
+    awk -v id="$invocation" '/Capability invocation audit:/ && index($0,"invocationId=" id ",") && /outcome=completed/ { found=1 } END { exit !found }' "$scratch/app.log"
+    count=$((count + 1))
+done < <(awk -F= '/^MCP_AUDIT_COMPLETED=/ { print $2 }' "$scratch/client.log")
+(( count > 0 ))
+denied_subjects=0
+while IFS= read -r subject; do
+    [[ "$subject" =~ ^[0-9]+$ ]] || exit 1
+    awk -v id="$subject" '/Capability invocation audit:/ && index($0,"subject=" id ",") && /outcome=denied/ { found=1 } END { exit !found }' "$scratch/app.log"
+    denied_subjects=$((denied_subjects + 1))
+done < <(awk -F= '/^MCP_AUDIT_DENIED_SUBJECT=/ { print $2 }' "$scratch/client.log")
+(( denied_subjects > 0 ))
+echo "MCP_AUDIT=passed COMPLETED=$count DENIED_SUBJECTS=verified"
+bounded 15 "${compose[@]}" exec -T postgres psql -U mcp_test -d mcp_test -v ON_ERROR_STOP=1 -c \
+    "DO \$\$ BEGIN IF (SELECT count(*) FROM wms_uoms) <> 2 OR (SELECT count(*) FROM flyway_schema_history WHERE success) <> 8 THEN RAISE EXCEPTION 'Unexpected test state'; END IF; END \$\$; SELECT code, description FROM wms_uoms ORDER BY code;"
+echo 'MCP_SQL=passed MIGRATIONS=8 FIXTURES=2'
