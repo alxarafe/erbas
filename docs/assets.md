@@ -80,8 +80,26 @@ runtime's identifier tie-breaker. Search is a literal case-sensitive substring
 over code/name. Queries execute against PostgreSQL with bound values, without
 normalization, joins, expansion or fuzzy search.
 
-There is no Assets frontend or AI integration. Asset types, manufacturers,
+## Governed READ integration
+
+The module registers `assets.asset.list` through the standard Core READ primitive
+pipeline. It requires `assets.read`, accepts only an empty JSON object, and delegates
+to Resource Runtime with offset zero and `ResourceQuery.DEFAULT_LIMIT`. It returns
+only the first page; it does not accept pagination, filtering or sorting arguments.
+The output preserves the runtime's `items`, `offset` and `limit`, and `total` when
+available. JDBC Assets currently supplies the total count.
+
+Discovery and each invocation recheck the current identity, functional permission
+and module state through Core. Invocation auditing uses the existing payload-free
+primitive audit and successful invocation ID. AI can discover this READ through
+its existing effective-tool catalogue; no provider or orchestration change is needed.
+
+Focused module tests cover the descriptor, strict input, page validation and runtime
+delegation, plus real Core routing/resource execution with a test persistence adapter,
+permission revocation, module disablement and audit outcomes. These tests do not
+replace PostgreSQL, HTTP or shared conformance validation through `./bin/check`.
+
+There is no Assets frontend. Asset types, manufacturers,
 models, locations, assignments, maintenance, contracts and dynamic fields are
-outside this slice. A later JAVA-AI-ASSET-READ-001 may add governed READ integration;
-it is not implemented here. The shared contract remains v0.14.0; module declarations
+outside this slice. The shared contract remains v0.14.0; module declarations
 do not add shared schemas or endpoints.
