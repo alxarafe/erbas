@@ -27,7 +27,8 @@ class ErbasApplicationTests {
     @Test
     void applicationContextLoads() {
         assertThat(modules.modules().stream().map(module -> module.descriptor().id())).containsExactly(AiModule.ID, AssetsModule.ID, WmsModule.ID);
-        assertThat(primitives.primitives()).isEmpty();
+        assertThat(primitives.primitives()).extracting(com.alxarafe.erbas.read.ReadPrimitive::id)
+                .containsExactly(com.alxarafe.erbas.assets.infrastructure.AssetListReadPrimitive.ID);
         assertThat(resources.definitions()).extracting(com.alxarafe.erbas.resources.ResourceDefinition::id).containsExactly(AssetResource.RESOURCE);
         assertThat(navigation.contributions()).extracting(com.alxarafe.erbas.navigation.NavigationContribution::moduleId).containsExactly(AssetsModule.ID);
     }

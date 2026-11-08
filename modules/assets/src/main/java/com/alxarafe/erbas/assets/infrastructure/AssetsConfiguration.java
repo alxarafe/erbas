@@ -22,6 +22,9 @@ public class AssetsConfiguration {
     @Bean JdbcAssetAdapter assetsAdapter(JdbcTemplate jdbc, PlatformTransactionManager manager) {
         return new JdbcAssetAdapter(jdbc, new TransactionTemplate(manager));
     }
+    @Bean AssetListReadPrimitive assetListReadPrimitive(ResourceRuntime runtime) {
+        return new AssetListReadPrimitive(runtime);
+    }
     @Bean ResourceActionExecutor completeAsset(JdbcAssetAdapter adapter) {
         return action(adapter, AssetResource.COMPLETE, AssetLifecycle.DRAFT, AssetLifecycle.READY);
     }
