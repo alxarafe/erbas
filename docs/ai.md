@@ -1,5 +1,8 @@
 # AI assistant READ orchestration (AI-001)
 
+See [real Groq functional verification](verification/ai-groq-real.md) for local
+provider observations and their limits, separate from CI and contract conformance.
+
 Java introduced controlled READ primitives with **erbas-contract v0.12.0**.
 That AI behavior remains unchanged under the current [v0.14.0 adoption](resources.md).
 `toolsUsed` supports the closed capability and primitive variants. The original
