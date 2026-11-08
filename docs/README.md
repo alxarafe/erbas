@@ -7,6 +7,7 @@ See [Assets](assets.md) for the persistent asset resource and lifecycle module.
 | [Resource Runtime](resources.md) | Generic resource registration, validation, CRUD, metadata, adapters and v0.14.0 contextual presentation adoption under review |
 | [Navigation](navigation.md) | Effective localized application tree and identity-bound conditional caching |
 | [AI assistant](ai.md) | AI-001 module, controlled READ capabilities/primitives, typed provenance, deterministic validation adapter and audit |
+| [MCP stdio experiment](mcp-spike.md) | Optional SDK-based HTTP-to-CORE adapter, isolated tests, measurement method and limits |
 | [Capabilities](capabilities.md) | CORE-CAP-001 discovery, CORE-CAP-002 READ invocation, provider handlers, trusted context, audit and published v0.10.0 adoption |
 | [CLEANUP-001 verification](verification/cleanup-001.md) | Empty normal composition, canonical validation modules and regression evidence |
 | [WMS-003J verification](verification/wms-003-java.md) | Item Families, atomic N:M associations and v0.8.0 error-envelope adoption |

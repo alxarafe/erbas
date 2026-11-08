@@ -1,0 +1,72 @@
+services:
+  postgres:
+    image: postgres:18.6@sha256:86c951e05bf56c93d95d397747fb8820ac76cc3bedb78f43abd83eedbe3666ae
+    labels:
+      org.erbas.mcp-spike.run: ${ERBAS_MCP_RUN:?}
+    environment:
+      POSTGRES_DB: mcp_test
+      POSTGRES_USER: mcp_test
+      POSTGRES_PASSWORD: isolated_test_only
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - data:/var/lib/postgresql
+  app:
+    image: ${ERBAS_MCP_RUN:?}-app:${ERBAS_MCP_IMAGE_VERSION:?}
+    build:
+      context: ${ERBAS_MCP_ROOT:?}
+      target: runtime
+      labels:
+        org.erbas.mcp-spike.run: ${ERBAS_MCP_RUN:?}
+    labels:
+      org.erbas.mcp-spike.run: ${ERBAS_MCP_RUN:?}
+    environment:
+      ERBAS_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mcp_test
+      ERBAS_DATASOURCE_USERNAME: mcp_test
+      ERBAS_DATASOURCE_PASSWORD: isolated_test_only
+      SPRING_PROFILES_ACTIVE: validation
+      ERBAS_AUTH_BOOTSTRAP_ENABLED: "true"
+      ERBAS_AUTH_BOOTSTRAP_EMAIL: ${ERBAS_MCP_TEST_EMAIL:?}
+      ERBAS_AUTH_BOOTSTRAP_PASSWORD: ${ERBAS_MCP_TEST_PASSWORD:?}
+      ERBAS_AUTH_BOOTSTRAP_ADMIN: "true"
+    read_only: true
+    tmpfs: [/tmp]
+    depends_on:
+      postgres:
+        condition: service_healthy
+  verification:
+    image: ${ERBAS_MCP_RUN:?}-verification:${ERBAS_MCP_IMAGE_VERSION:?}
+    build:
+      context: ${ERBAS_MCP_ROOT:?}
+      dockerfile: experiments/mcp-stdio/Dockerfile
+      target: verification
+      labels:
+        org.erbas.mcp-spike.run: ${ERBAS_MCP_RUN:?}
+    labels:
+      org.erbas.mcp-spike.run: ${ERBAS_MCP_RUN:?}
+    environment:
+      ERBAS_MCP_CORE_URL: http://app:8080
+      ERBAS_MCP_TEST_EMAIL: ${ERBAS_MCP_TEST_EMAIL:?}
+      ERBAS_MCP_TEST_PASSWORD: ${ERBAS_MCP_TEST_PASSWORD:?}
+      ERBAS_MCP_TEST_ADAPTER_CP: /workspace/experiments/mcp-stdio/target/mcp-stdio-0.1.0.jar:/workspace/experiments/mcp-stdio/target/dependency/*
+    command: ./mvnw --batch-mode --no-transfer-progress -f experiments/mcp-stdio/pom.xml -Dtest=McpLiveIT test
+  adapter-image:
+    image: ${ERBAS_MCP_RUN:?}-adapter:${ERBAS_MCP_IMAGE_VERSION:?}
+    build:
+      context: ${ERBAS_MCP_ROOT:?}
+      dockerfile: experiments/mcp-stdio/Dockerfile
+      target: runtime
+      labels:
+        org.erbas.mcp-spike.run: ${ERBAS_MCP_RUN:?}
+    profiles: [image-only]
+networks:
+  default:
+    labels:
+      org.erbas.mcp-spike.run: ${ERBAS_MCP_RUN:?}
+volumes:
+  data:
+    labels:
+      org.erbas.mcp-spike.run: ${ERBAS_MCP_RUN:?}
