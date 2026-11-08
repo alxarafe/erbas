@@ -43,3 +43,82 @@ were unavailable. Nonempty catalogue fidelity, pagination beyond the first page,
 multiple READ calls in one invocation and other providers remained unverified.
 Connectivity, protocol interoperability and individual CORE READ execution were
 demonstrated for this configuration only.
+
+## GROQ-REAL-002: nonempty catalogues and authorization
+
+The same running application was used without code or configuration changes.
+The enabled administrator identity was confirmed through `/api/auth/me` after
+login (both 200). All three catalogues were empty before preparation.
+The original local result record, reviewed before writing this summary, was
+`/tmp/erbas-groq-real-002-results.txt`; successful execution ran from
+06:25:03 to 06:25:09 UTC. Only non-sensitive observations are reproduced here.
+
+Six fictitious records were created through the public APIs (201). Subsequent
+GET requests returned 200 with two items per catalogue, `offset=0`, `limit=50`
+and `total=2`. Direct SQL confirmed IDs, codes and descriptions/names.
+
+| Catalogue | Test code | Persisted description/name |
+| --- | --- | --- |
+| Units | `GQ002CAJA` | Caja (prueba GROQ-REAL-002) |
+| Units | `GQ002KG` | Kilogramo (prueba GROQ-REAL-002) |
+| Attributes | `GROQ002_FRAGIL` | Frágil (prueba GROQ-REAL-002) |
+| Attributes | `GROQ002_REFRIGERADO` | Refrigerado (prueba GROQ-REAL-002) |
+| Families | `GROQ002_ALIMENTACION` | Alimentación (prueba GROQ-REAL-002) |
+| Families | `GROQ002_ELECTRONICA` | Electrónica (prueba GROQ-REAL-002) |
+
+The first preparation attempt received 400, `invalid_request`, because the
+proposed UoM code `GROQ002_KG` violated the actual UoM rule
+`^[A-Z][A-Z0-9]{0,9}$`. No record was created by that rejected request.
+Preparation continued with the valid UoM codes above; this was not a Groq failure.
+
+Two associations were created through
+`POST /api/wms/item-families/{familyId}/storage-attributes` (201):
+`GROQ002_ALIMENTACION` → `GROQ002_REFRIGERADO` and
+`GROQ002_ELECTRONICA` → `GROQ002_FRAGIL`. GET on each association collection
+returned 200 with one item. A SQL join of `wms_item_family_storage_attributes`,
+`wms_item_families` and `wms_storage_attributes` confirmed both pairs.
+The assistant did not query these associations. API availability does not prove
+their availability as CORE READ tools.
+
+| Query | HTTP | Answer assessment | Actual `toolsUsed` |
+| --- | --- | --- | --- |
+| A: registered units | 200 | Both exact codes and descriptions, in Spanish | `wms.uoms.list` |
+| B: available storage attributes | 200 | Both exact codes and names, in Spanish | `wms.storage-attributes.list` |
+| C: existing item families | 200 | Both exact codes and names, in Spanish | `wms.item-families.list` |
+| D: combined summary of all three catalogues | 200 | Asked which category to show first instead of producing the requested summary | `[]` |
+
+| Query | AI invocation ID | CORE invocation ID |
+| --- | --- | --- |
+| A | `fd6f7a15-d3c3-48f8-b8d9-1cbed0371b2e` | `58082fc9-bff3-4fec-a6cc-a39fb89f5866` |
+| B | `9d589254-23e5-43fe-aec0-599e0f8c6a09` | `2698bfad-0907-4954-978c-4757cd7dbcf0` |
+| C | `25161b65-1fdd-4ecf-aff0-833b04902b38` | `0d63f73b-0f42-43ce-809b-8ec9837fcbea` |
+| D | `49a0ee9d-8bb5-49ba-915f-239d826193de` | None |
+
+CORE audit confirmed A–C completed successfully; `toolsUsed` linked each actual
+READ execution. All records fit in the first page, and the answers agreed with
+both API and SQL results without invented records. No WRITE capability was
+executed by AI; fixture creation was performed directly through the public APIs.
+
+D was functionally incorrect despite HTTP 200 and a valid response envelope.
+It is an observed model behavior failure, not a demonstrated protocol failure:
+the model returned an answer without requesting tools, and no CORE call failed.
+Multiple READ execution in a single real-provider invocation remains unverified.
+No additional Groq calls were made to retry or reformulate D.
+
+A separate non-administrator test identity was created through `/api/users`
+(201). Login and `/api/auth/me` returned 200; AI, user listing and WMS unit
+listing each returned 403, `forbidden`. The denied AI audit entry recorded
+`toolsUsed=[]`, with no CORE execution. The temporary identity was then disabled
+through `PATCH /api/users/{id}` (200); GET confirmed `enabled=false`, and its
+previous bearer token returned 401 on `/api/auth/me`. Existing accounts were
+not changed.
+
+The six records and two associations listed above remain pending deliberate
+cleanup; they were not removed automatically. The temporary identity remains
+disabled. No previous business data was changed or deleted.
+
+**Assessment:** Groq connectivity, individual tool calling, successful CORE READ
+execution, fidelity for these nonempty catalogues and effective authorization
+were demonstrated. Combined-summary quality failed; multi-READ behavior,
+larger pagination and other providers were not established. This evidence does
+not validate the entire multiprovider MVP or all model behavior.
