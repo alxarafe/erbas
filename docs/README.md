@@ -8,6 +8,7 @@ See [Assets](assets.md) for the persistent asset resource and lifecycle module.
 | [Navigation](navigation.md) | Effective localized application tree and identity-bound conditional caching |
 | [AI assistant](ai.md) | AI-001 module, controlled READ capabilities/primitives, typed provenance, deterministic validation adapter and audit |
 | [MCP stdio experiment](mcp-spike.md) | Optional SDK-based HTTP-to-CORE adapter, isolated tests, measurement method and limits |
+| [Document authorization](document-authorization.md) | Internal cumulative knowledge authorization, module-owned restrictions, relation isolation and future RAG boundaries |
 | [Capabilities](capabilities.md) | CORE-CAP-001 discovery, CORE-CAP-002 READ invocation, provider handlers, trusted context, audit and published v0.10.0 adoption |
 | [CLEANUP-001 verification](verification/cleanup-001.md) | Empty normal composition, canonical validation modules and regression evidence |
 | [WMS-003J verification](verification/wms-003-java.md) | Item Families, atomic N:M associations and v0.8.0 error-envelope adoption |
