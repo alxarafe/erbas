@@ -2,6 +2,7 @@ package com.alxarafe.erbas;
 
 import org.springframework.boot.SpringApplication;
 import com.alxarafe.erbas.core.CoreConfiguration;
+import com.alxarafe.erbas.knowledge.storage.infrastructure.KnowledgeConfiguration;
 import com.alxarafe.erbas.wms.infrastructure.WmsConfiguration;
 import com.alxarafe.erbas.ai.infrastructure.AiConfiguration;
 import com.alxarafe.erbas.assets.infrastructure.AssetsConfiguration;
@@ -19,7 +20,7 @@ import java.util.stream.Collectors;
 
 @SpringBootConfiguration
 @EnableAutoConfiguration
-@Import({CoreConfiguration.class, WmsConfiguration.class, AiConfiguration.class, AssetsConfiguration.class})
+@Import({CoreConfiguration.class, WmsConfiguration.class, AiConfiguration.class, AssetsConfiguration.class, KnowledgeConfiguration.class})
 public class ErbasApplication {
     @Bean
     public FunctionalPermissionPolicy assetAdministratorGrants() {

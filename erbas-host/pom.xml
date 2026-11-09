@@ -13,6 +13,10 @@
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>erbas-knowledge</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>erbas-assets</artifactId>
         </dependency>
         <dependency>

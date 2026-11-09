@@ -20,7 +20,7 @@ collect module-owned policy beans, as the WMS fixture demonstrates. Registered
 owners must be available in `ModuleRegistry`. Registration bindings are fixed;
 policy decisions must consult current authoritative state.
 
-There is deliberately no production knowledge bean, controller or default
+There is deliberately no production document authorization bean, controller or default
 visibility policy yet. Future composition must explicitly provide current-user
 lookup, existing functional policies, visibility and module policies. Omitting
 visibility is a configuration error, not public access. This is an in-process
@@ -92,3 +92,7 @@ composition responsibilities. Authorization and a future content read are not
 atomic: concurrent revocation between check and disclosure remains unresolved.
 AI-RAG-001A must design that consistency boundary and information-leak tests
 before exposing a real retrieval path; this contract alone does not secure one.
+
+The subsequent [AI-RAG-001A-1 storage slice](knowledge-storage.md) adds internal
+document persistence in an independent Knowledge module. It does not expose a
+retrieval path or supply authorization composition and leaves this boundary intact.
