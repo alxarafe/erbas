@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import com.alxarafe.erbas.knowledge.DocumentReference;
+import com.alxarafe.erbas.knowledge.storage.application.DocumentReadStore;
 import com.alxarafe.erbas.knowledge.storage.domain.DocumentContent;
 import com.alxarafe.erbas.knowledge.storage.domain.DocumentRevision;
 import com.alxarafe.erbas.knowledge.storage.domain.StoredDocument;
@@ -15,11 +16,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** Trusted infrastructure only. Callers must authorize before any disclosure; no public read path is registered. */
-public final class JdbcDocumentStore {
+/** Trusted infrastructure only. Application consumers must use the authorized reader before disclosure. */
+public final class JdbcDocumentStore implements DocumentReadStore {
     public static final String DOCUMENTS = "knowledge_documents";
     public static final String REVISIONS = "knowledge_document_revisions";
-    private static final int FIRST_REVISION = 1;
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
 
@@ -35,7 +35,7 @@ public final class JdbcDocumentStore {
         validate(provenance, createdBy, content);
         return transactions.execute(status -> {
             jdbc.update("INSERT INTO " + DOCUMENTS + " (id, owner_module) VALUES (?, ?)", id, ownerModule);
-            return insert(reference, FIRST_REVISION, provenance, createdBy, content);
+            return insert(reference, DocumentRevision.FIRST_NUMBER, provenance, createdBy, content);
         });
     }
 
@@ -57,6 +57,18 @@ public final class JdbcDocumentStore {
     public Optional<StoredDocument> document(UUID id) {
         return jdbc.query("SELECT * FROM " + DOCUMENTS + " WHERE id = ?", (rs, row) -> new StoredDocument(
                 rs.getObject("id", UUID.class), rs.getString("owner_module"), rs.getTimestamp("created_at").toInstant()), id)
+                .stream().findFirst();
+    }
+
+    @Override public Optional<Integer> latestRevision(UUID documentId) {
+        return jdbc.query("SELECT MAX(revision_number) FROM " + REVISIONS + " WHERE document_id = ?",
+                (rs, row) -> (Integer) rs.getObject(1), documentId).stream().filter(Objects::nonNull).findFirst();
+    }
+
+    @Override public Optional<DocumentReference> reference(UUID documentId, int number) {
+        return jdbc.query("SELECT r.document_id, d.owner_module, r.required_permissions, r.module_policy_required FROM "
+                + REVISIONS + " r JOIN " + DOCUMENTS + " d ON d.id = r.document_id"
+                + " WHERE r.document_id = ? AND r.revision_number = ?", (rs, row) -> reference(rs), documentId, number)
                 .stream().findFirst();
     }
 
@@ -92,17 +104,20 @@ public final class JdbcDocumentStore {
 
     private static DocumentRevision revision(ResultSet rs) throws SQLException {
         UUID documentId = rs.getObject("document_id", UUID.class);
-        var permissions = rs.getArray("required_permissions");
-        Set<String> required;
-        try { required = Set.copyOf(Arrays.asList((String[]) permissions.getArray())); }
-        finally { permissions.free(); }
         var content = new DocumentContent(rs.getBytes("original_content"), rs.getString("content_type"));
         if (!content.sha256().equals(rs.getString("sha256")) || !content.text().equals(rs.getString("normalized_text")))
             throw new IllegalStateException("Document revision integrity failure");
         return new DocumentRevision(rs.getObject("id", UUID.class), documentId, rs.getInt("revision_number"),
                 rs.getString("provenance"), rs.getString("created_by"), rs.getTimestamp("created_at").toInstant(),
-                new DocumentReference(documentId.toString(), rs.getString("owner_module"), required,
-                        rs.getBoolean("module_policy_required")), content);
+                reference(rs), content);
+    }
+
+    private static DocumentReference reference(ResultSet rs) throws SQLException {
+        var permissions = rs.getArray("required_permissions");
+        try {
+            return new DocumentReference(rs.getObject("document_id", UUID.class).toString(), rs.getString("owner_module"),
+                    Set.copyOf(Arrays.asList((String[]) permissions.getArray())), rs.getBoolean("module_policy_required"));
+        } finally { permissions.free(); }
     }
 
     private static void validate(String provenance, String createdBy, DocumentContent content) {
