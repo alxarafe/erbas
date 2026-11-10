@@ -17,6 +17,7 @@ import com.alxarafe.erbas.modularity.persistence.JdbcModuleStateStore;
 import com.alxarafe.erbas.wms.WmsModule;
 import com.alxarafe.erbas.ai.AiModule;
 import com.alxarafe.erbas.assets.AssetsModule;
+import com.alxarafe.erbas.knowledge.storage.KnowledgeModule;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,7 +52,7 @@ class ModuleAdministrationIT {
     private static final String UNKNOWN = "module-administration-unknown";
     private static final String LOGIN_PATH = "/api/auth/login";
     private static final String BEARER_SCHEME = "Bearer";
-    private static final int AVAILABLE_MODULE_COUNT = 5;
+    private static final int AVAILABLE_MODULE_COUNT = 6;
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
     @Value("${local.server.port}") private int port;
     @Autowired private ModuleRegistry registry;
@@ -75,6 +76,7 @@ class ModuleAdministrationIT {
                 new ModuleDescriptor(AssetsModule.ID, ModuleApi.CURRENT_VERSION, List.of()),
                 new ModuleDescriptor(MATH_ID, ModuleApi.CURRENT_VERSION, List.of()),
                 new ModuleDescriptor(STATISTICS_ID, ModuleApi.CURRENT_VERSION, List.of(MATH_ID)),
+                new ModuleDescriptor(KnowledgeModule.ID, ModuleApi.CURRENT_VERSION, List.of()),
                 new ModuleDescriptor(WmsModule.ID, ModuleApi.CURRENT_VERSION, List.of()));
         assertThat(runtime.modules()).containsExactlyElementsOf(registry.modules());
         assertThat(store.find(MATH_ID)).contains(ModuleStateService.INITIAL_ENABLED);
@@ -90,6 +92,7 @@ class ModuleAdministrationIT {
     void restoreThroughTheNormalAuthority() {
         states.enable(AiModule.ID);
         states.enable(AssetsModule.ID);
+        states.enable(KnowledgeModule.ID);
         states.enable(MATH_ID);
         states.enable(STATISTICS_ID);
         states.enable(WmsModule.ID);
@@ -113,7 +116,7 @@ class ModuleAdministrationIT {
         var response = get(ModuleController.MODULES_PATH, adminToken);
         assertJson(response, HttpStatus.OK);
         assertThat(json.readTree(response.body())).isEqualTo(json.valueToTree(Map.of(
-                "items", List.of(module(AiModule.ID, true), module(AssetsModule.ID, true), module(MATH_ID, true), module(STATISTICS_ID, true), module(WmsModule.ID, true)),
+                "items", List.of(module(AiModule.ID, true), module(AssetsModule.ID, true), module(MATH_ID, true), module(STATISTICS_ID, true), module(KnowledgeModule.ID, true), module(WmsModule.ID, true)),
                 "offset", 0, "limit", PagedCollection.DEFAULT_LIMIT, "total", AVAILABLE_MODULE_COUNT,
                 "order", List.of(Map.of("field", "id", "direction", "asc")))));
         assertThat(store.find(RETIRED)).contains(false);
@@ -159,15 +162,17 @@ class ModuleAdministrationIT {
     void coreAdministrationRemainsAccessibleWithEveryModuleDisabledAndReadsCurrentCommittedState() throws Exception {
         states.disable(AiModule.ID);
         states.disable(AssetsModule.ID);
+        states.disable(KnowledgeModule.ID);
         states.disable(STATISTICS_ID);
         states.disable(MATH_ID);
         states.disable(WmsModule.ID);
         var response = get(ModuleController.MODULES_PATH, adminToken);
         assertJson(response, HttpStatus.OK);
         assertThat(json.readTree(response.body()).get("items")).isEqualTo(
-                json.valueToTree(List.of(module(AiModule.ID, false), module(AssetsModule.ID, false), module(MATH_ID, false), module(STATISTICS_ID, false), module(WmsModule.ID, false))));
+                json.valueToTree(List.of(module(AiModule.ID, false), module(AssetsModule.ID, false), module(MATH_ID, false), module(STATISTICS_ID, false), module(KnowledgeModule.ID, false), module(WmsModule.ID, false))));
         assertModule(patch(AiModule.ID, true, adminToken), AiModule.ID, true);
         assertModule(patch(AssetsModule.ID, true, adminToken), AssetsModule.ID, true);
+        assertModule(patch(KnowledgeModule.ID, true, adminToken), KnowledgeModule.ID, true);
         assertModule(patch(MATH_ID, true, adminToken), MATH_ID, true);
         assertModule(patch(STATISTICS_ID, true, adminToken), STATISTICS_ID, true);
         assertModule(patch(WmsModule.ID, true, adminToken), WmsModule.ID, true);

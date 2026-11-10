@@ -17,7 +17,7 @@ ModuleSource(s) -> ModuleRegistry -> ModuleGraph -> ModuleRuntime
 ## Physical Maven ownership
 
 The root `pom.xml` is an aggregator and dependency-management parent. It does not
-produce an executable application. Five artifacts compose the one process:
+produce an executable application. Six artifacts compose the one process:
 
 | Source root | Artifact | Responsibility | Internal dependencies |
 | --- | --- | --- | --- |
@@ -25,10 +25,11 @@ produce an executable application. Five artifacts compose the one process:
 | `modules/wms/` | `erbas-wms` | WMS UoM, StorageAttribute, ItemFamily and association domain/application, HTTP/JDBC adapters, Spring composition and migration resources | CORE |
 | `modules/ai/` | `erbas-ai` | AI-001 provider-neutral READ orchestration through CORE, permission/module gates, HTTP, audit and AI resources | CORE |
 | `modules/assets/` | `erbas-assets` | Persistent asset resource, lifecycle and resource/navigation declarations | CORE only |
-| `erbas-host/` | `erbas-host` | Executable Spring Boot composition root and runtime configuration | CORE, WMS, Assets and AI |
+| `modules/knowledge/` | `erbas-knowledge` | Internal document/revision storage, JDBC and owned migrations | CORE only |
+| `erbas-host/` | `erbas-host` | Executable Spring Boot composition root and runtime configuration | CORE, WMS, Assets, AI and Knowledge |
 
 Java packages remain stable. `ErbasApplication` imports `CoreConfiguration`,
-`WmsConfiguration`, `AssetsConfiguration` and `AiConfiguration` explicitly; it does not scan the parent package to discover
+`WmsConfiguration`, `AssetsConfiguration`, `AiConfiguration` and `KnowledgeConfiguration` explicitly; it does not scan the parent package to discover
 functional modules. CORE scans only its owned platform packages. WMS explicitly
 imports its own HTTP adapters and registers its services, descriptor and Spring
 Security customizer. Both authentication and that customizer use the generic
@@ -45,7 +46,8 @@ for migration compatibility and verification commands.
 
 WMS owns V5 UoMs, V6 Storage Attributes and V7 Item Families/associations under
 `modules/wms/src/main/resources/db/wms`. The host composes these with CORE V1–V4
-in one validated Flyway history, together with Assets V8 under `db/assets`.
+in one validated Flyway history, together with Assets V8 under `db/assets`
+and Knowledge V9 under `db/knowledge`; see [document storage](knowledge-storage.md).
 Existing SQL migrations remain immutable. See [Assets](assets.md).
 WMS serializes association writes by locking the owning family row, evaluates
 reference existence and pre-state conflicts before any writes, and commits the

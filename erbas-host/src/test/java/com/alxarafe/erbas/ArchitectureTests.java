@@ -23,6 +23,8 @@ class ArchitectureTests {
     private static final Path WMS = ROOT.resolve("modules/wms");
     private static final Path AI = ROOT.resolve("modules/ai");
     private static final Path ASSETS = ROOT.resolve("modules/assets");
+    private static final Path KNOWLEDGE = ROOT.resolve("modules/knowledge");
+    private static final String KNOWLEDGE_PACKAGE = "com.alxarafe.erbas.knowledge.storage";
     private static final String ASSETS_PACKAGE = "com.alxarafe.erbas.assets";
     private static final Path HOST = ROOT.resolve("erbas-host");
     private static final String JAVA_SOURCES = "src/main/java";
@@ -41,9 +43,26 @@ class ArchitectureTests {
             "com.alxarafe.erbas.core.", "com.alxarafe.erbas.ErbasApplication");
 
     @Test
+    void knowledgeIsAnInternalIndependentStorageModule() throws Exception {
+        for (var module : List.of(CORE, WMS, AI, ASSETS)) for (var file : files(module.resolve("src/main")))
+            assertThat(Files.readString(file)).as(file.toString()).doesNotContain(KNOWLEDGE_PACKAGE, "knowledge_documents", "knowledge_document_revisions");
+        for (var file : files(KNOWLEDGE.resolve(JAVA_SOURCES))) {
+            String source = Files.readString(file);
+            assertThat(source).as(file.toString()).doesNotContain(WMS_PACKAGE, AI_PACKAGE, ASSETS_PACKAGE,
+                    "@RestController", "@RequestMapping", "DocumentAuthorization", "DocumentVisibilityPolicy", ".admin()");
+            if (file.toString().contains("/domain/"))
+                assertThat(source).doesNotContain("org.springframework", "org.flywaydb", "java.sql", ".infrastructure.");
+        }
+        assertThat(KNOWLEDGE.resolve(RESOURCES + "/db/knowledge/V9__knowledge_documents.sql")).isRegularFile();
+        assertThat(dependencies(HOST)).contains("erbas-knowledge");
+        assertThat(Files.readString(KNOWLEDGE.resolve("pom.xml"))).doesNotContain(BOOT_PLUGIN);
+    }
+
+    @Test
     void mavenDependencyDirectionIsHostToCoreAndWmsAndWmsToCore() throws Exception {
         assertThat(dependencies(ROOT)).doesNotContain("erbas-core", "erbas-wms", "erbas-ai", "erbas-host");
-        assertThat(dependencies(CORE)).doesNotContain("erbas-wms", "erbas-ai", "erbas-assets", "erbas-host");
+        assertThat(dependencies(CORE)).doesNotContain("erbas-wms", "erbas-ai", "erbas-assets", "erbas-host", "erbas-knowledge");
+        assertThat(dependencies(ROOT.resolve("modules/knowledge"))).containsExactly("erbas-core");
         assertThat(dependencies(WMS)).contains("erbas-core").doesNotContain("erbas-ai", "erbas-assets", "erbas-host");
         assertThat(dependencies(AI)).containsExactly("erbas-core");
         assertThat(dependencies(ASSETS)).containsExactly("erbas-core");
@@ -62,7 +81,7 @@ class ArchitectureTests {
     @Test
     void hostExplicitlyImportsOnlyTheWmsCompositionBoundary() throws Exception {
         var source = Files.readString(HOST.resolve(JAVA_SOURCES + "/com/alxarafe/erbas/ErbasApplication.java"));
-        assertThat(source).contains("@Import({CoreConfiguration.class, WmsConfiguration.class, AiConfiguration.class, AssetsConfiguration.class})")
+        assertThat(source).contains("@Import({CoreConfiguration.class, WmsConfiguration.class, AiConfiguration.class, AssetsConfiguration.class, KnowledgeConfiguration.class})")
                 .doesNotContain("@SpringBootApplication", "@ComponentScan");
         for (var file : files(HOST.resolve(JAVA_SOURCES))) {
             // Include qualified references as well as imports.

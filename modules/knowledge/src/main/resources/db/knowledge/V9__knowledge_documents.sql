@@ -1,0 +1,31 @@
+CREATE TABLE knowledge_documents (
+    id UUID PRIMARY KEY,
+    owner_module TEXT NOT NULL CHECK (btrim(owner_module) <> ''),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE knowledge_document_revisions (
+    id UUID PRIMARY KEY,
+    document_id UUID NOT NULL REFERENCES knowledge_documents(id),
+    revision_number INTEGER NOT NULL CHECK (revision_number > 0),
+    provenance TEXT NOT NULL CHECK (btrim(provenance) <> ''),
+    created_by TEXT NOT NULL CHECK (btrim(created_by) <> ''),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    required_permissions TEXT[] NOT NULL CHECK (cardinality(required_permissions) > 0),
+    module_policy_required BOOLEAN NOT NULL,
+    content_type TEXT NOT NULL CHECK (content_type IN ('text/plain', 'text/markdown')),
+    original_content BYTEA NOT NULL,
+    normalized_text TEXT NOT NULL,
+    sha256 TEXT NOT NULL CHECK (sha256 = encode(sha256(original_content), 'hex')),
+    UNIQUE (document_id, revision_number)
+);
+
+-- Revisions are append-only, including when accessed outside the Java adapter.
+CREATE FUNCTION knowledge_reject_revision_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'Document revisions are immutable';
+END;
+$$;
+CREATE TRIGGER knowledge_immutable_revisions
+    BEFORE UPDATE OR DELETE ON knowledge_document_revisions
+    FOR EACH ROW EXECUTE FUNCTION knowledge_reject_revision_mutation();
