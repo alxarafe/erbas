@@ -4,7 +4,7 @@ See [Assets](assets.md) for the persistent asset resource and lifecycle module.
 
 | Document | Purpose |
 | --- | --- |
-| [Document storage](knowledge-storage.md) | Internal Knowledge persistence, immutable revisions, integrity and authorization boundary |
+| [Document storage](knowledge-storage.md) | Knowledge metadata, opaque object storage, local provider, integrity and authorized reads |
 | [Resource Runtime](resources.md) | Generic resource registration, validation, CRUD, metadata, adapters and v0.14.0 contextual presentation adoption under review |
 | [Navigation](navigation.md) | Effective localized application tree and identity-bound conditional caching |
 | [AI assistant](ai.md) | AI-001 module, controlled READ capabilities/primitives, typed provenance, deterministic validation adapter and audit |

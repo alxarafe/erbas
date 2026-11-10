@@ -1,6 +1,7 @@
 CREATE TABLE knowledge_documents (
     id UUID PRIMARY KEY,
     owner_module TEXT NOT NULL CHECK (btrim(owner_module) <> ''),
+    storage_scope UUID NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -14,9 +15,13 @@ CREATE TABLE knowledge_document_revisions (
     required_permissions TEXT[] NOT NULL CHECK (cardinality(required_permissions) > 0),
     module_policy_required BOOLEAN NOT NULL,
     content_type TEXT NOT NULL CHECK (content_type IN ('text/plain', 'text/markdown')),
-    original_content BYTEA NOT NULL,
-    normalized_text TEXT NOT NULL,
-    sha256 TEXT NOT NULL CHECK (sha256 = encode(sha256(original_content), 'hex')),
+    original_object UUID NOT NULL UNIQUE,
+    original_size BIGINT NOT NULL CHECK (original_size >= 0),
+    normalized_object UUID NOT NULL UNIQUE,
+    normalized_size BIGINT NOT NULL CHECK (normalized_size >= 0),
+    sha256 TEXT NOT NULL CHECK (sha256 ~ '^[0-9a-f]{64}$'),
+    normalized_sha256 TEXT NOT NULL CHECK (normalized_sha256 ~ '^[0-9a-f]{64}$'),
+    CHECK (original_object <> normalized_object),
     UNIQUE (document_id, revision_number)
 );
 

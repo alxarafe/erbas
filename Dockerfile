@@ -14,7 +14,9 @@ RUN microdnf install -y curl \
     && rm -rf /var/cache/yum
 COPY --from=build /workspace/erbas-host/target/erbas-host-0.1.0-SNAPSHOT.jar /app/erbas.jar
 
-RUN chown -R 10001:0 /app
+RUN mkdir -p /var/lib/erbas/knowledge \
+    && chown -R 10001:0 /app /var/lib/erbas/knowledge \
+    && chmod 700 /var/lib/erbas/knowledge
 USER 10001
 
 EXPOSE 8080

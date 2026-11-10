@@ -145,7 +145,9 @@ the host port. PostgreSQL has no host port. Development defaults are database
 `erbas_dev`, user `erbas`, password `erbas_local_only`; override them with
 `ERBAS_DB_NAME`, `ERBAS_DB_USER`, `ERBAS_DB_PASSWORD`. They are local defaults,
 not production credentials. `bin/down` removes development containers and the
-Compose network, preserving the named PostgreSQL volume and its data. It is safe
+Compose network, preserving the named PostgreSQL and Knowledge object volumes
+and their data. See [document storage](knowledge-storage.md) for the private
+filesystem root, provider configuration and coherent backup requirements. It is safe
 to repeat when services are already stopped and accepts no volume-removal option.
 
 `bin/up` validates Compose, builds only the application target, and starts only
@@ -210,7 +212,8 @@ stateless bearer authentication are implemented. Account
 bootstrap is explicit and runs after migrations; it is not part of Flyway.
 No ORM, JPA or Hibernate is present.
 The multi-stage runtime runs as user 10001; Compose uses
-a read-only filesystem and temporary `/tmp`.
+a read-only filesystem, temporary `/tmp` and a private writable Knowledge object
+volume at `/var/lib/erbas/knowledge`.
 
 `GET /health` is public process liveness, independent of dependencies after
 startup. `/actuator/health` retains Spring's operational meaning and representation.
