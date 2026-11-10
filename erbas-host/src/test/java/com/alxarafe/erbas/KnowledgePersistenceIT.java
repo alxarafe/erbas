@@ -6,6 +6,15 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import com.alxarafe.erbas.knowledge.storage.domain.DocumentContent;
 import com.alxarafe.erbas.knowledge.storage.infrastructure.JdbcDocumentStore;
+import com.alxarafe.erbas.knowledge.storage.application.AuthorizedDocumentReader;
+import com.alxarafe.erbas.knowledge.DocumentVisibilityPolicy;
+import com.alxarafe.erbas.knowledge.DocumentAccessPolicy;
+import com.alxarafe.erbas.security.FunctionalPermissionPolicy;
+import com.alxarafe.erbas.auth.application.UserAdministration;
+import com.alxarafe.erbas.auth.application.UserIdentity;
+import com.alxarafe.erbas.knowledge.DocumentReference;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.junit.jupiter.api.Test;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.flywaydb.core.Flyway;
@@ -17,6 +26,7 @@ import static org.assertj.core.api.Assertions.*;
 class KnowledgePersistenceIT {
     private static final String SCHEMA = "knowledge_storage_it";
     private static final String OWNER = "erbas.wms";
+    private static final String FOREIGN_OWNER = "erbas.assets";
     private static final Set<String> PERMISSIONS = Set.of("wms.read");
     private static final String SOURCE = "internal:test";
     private static final String CREATOR = "test-subject";
@@ -55,8 +65,66 @@ class KnowledgePersistenceIT {
                 assertThat(host.getBean(Flyway.class).migrate().migrationsExecuted).isZero();
                 // Use the host-composed bean with its real DataSource and transaction manager.
                 exercise(host.getBean(JdbcDocumentStore.class), jdbc);
+                var store = host.getBean(JdbcDocumentStore.class);
+                var denied = store.create(OWNER, PERMISSIONS, true, SOURCE, CREATOR,
+                        new DocumentContent("protected".getBytes(StandardCharsets.UTF_8), DocumentContent.TXT));
+                long subject = host.getBean(UserAdministration.class)
+                        .create("default-reader@example.invalid", "fixture-password-long", true).user().userId();
+                assertThat(host.getBean(AuthorizedDocumentReader.class).document(subject, OWNER, denied.documentId())).isEmpty();
+            }
+            try (var host = new SpringApplicationBuilder(ErbasApplication.class, ReadPolicies.class).run("--server.port=0",
+                    "--spring.datasource.hikari.maximum-pool-size=" + CONCURRENT_WRITERS,
+                    "--spring.datasource.url=" + System.getenv("ERBAS_DATASOURCE_URL") + "?currentSchema=" + SCHEMA,
+                    "--spring.flyway.schemas=" + SCHEMA, "--spring.flyway.default-schema=" + SCHEMA)) {
+                var users = host.getBean(UserAdministration.class);
+                long subject = users.create("knowledge-reader@example.invalid", "fixture-password-long", false).user().userId();
+                var store = host.getBean(JdbcDocumentStore.class);
+                var first = store.create(OWNER, PERMISSIONS, true, SOURCE, CREATOR,
+                        new DocumentContent("first".getBytes(StandardCharsets.UTF_8), DocumentContent.TXT));
+                var second = store.append(first.documentId(), PERMISSIONS, true, SOURCE, CREATOR,
+                        new DocumentContent("second".getBytes(StandardCharsets.UTF_8), DocumentContent.TXT));
+                var reader = host.getBean(AuthorizedDocumentReader.class);
+                assertThat(reader.document(subject, OWNER, first.documentId()).orElseThrow().id()).isEqualTo(second.id());
+                var historical = reader.revision(subject, OWNER, first.documentId(), first.number()).orElseThrow();
+                assertThat(historical.id()).isEqualTo(first.id());
+                assertThat(historical.content().original()).isEqualTo(first.content().original());
+                assertThat(historical.provenance()).isEqualTo(SOURCE);
+                assertThat(reader.document(subject, FOREIGN_OWNER, first.documentId())).isEmpty();
+                var scoped = store.create(OWNER, PERMISSIONS, true, SOURCE, CREATOR, first.content());
+                host.getBean(ReadPolicies.class).restricted = scoped.documentId();
+                assertThat(reader.document(subject, OWNER, scoped.documentId())).isEmpty();
+                assertThat(reader.revision(subject, OWNER, scoped.documentId(), scoped.number())).isEmpty();
+                assertThat(reader.document(subject, OWNER, first.documentId())).isPresent();
+                var foreign = store.create(FOREIGN_OWNER, PERMISSIONS, true, SOURCE, CREATOR, first.content());
+                assertThat(reader.document(subject, OWNER, foreign.documentId())).isEmpty();
+                assertThat(reader.document(subject, FOREIGN_OWNER, foreign.documentId())).isEmpty();
+                host.getBean(ReadPolicies.class).member = false;
+                assertThat(reader.document(subject, OWNER, first.documentId())).isEmpty();
+                host.getBean(ReadPolicies.class).member = true;
+                users.update(Long.toString(subject), false, null);
+                assertThat(reader.revision(subject, OWNER, first.documentId(), first.number())).isEmpty();
+                assertThat(store.revision(first.documentId(), first.number()).orElseThrow().content().sha256())
+                        .isEqualTo(first.content().sha256());
             }
         } finally { jdbc.execute("DROP SCHEMA IF EXISTS " + SCHEMA + " CASCADE"); }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class ReadPolicies {
+        boolean member = true;
+        UUID restricted;
+        @Bean FunctionalPermissionPolicy knowledgeFixturePermission() {
+            return (user, permission) -> PERMISSIONS.contains(permission);
+        }
+        @Bean DocumentVisibilityPolicy knowledgeFixtureVisibility() { return (user, document) -> true; }
+        @Bean DocumentAccessPolicy knowledgeFixtureOwnerPolicy() {
+            return new DocumentAccessPolicy() {
+                public String module() { return OWNER; }
+                public boolean allowed(UserIdentity user, DocumentReference document) {
+                    return member && !document.id().equals(String.valueOf(restricted));
+                }
+            };
+        }
     }
 
     private static void exercise(JdbcDocumentStore store, JdbcTemplate jdbc) throws Exception {

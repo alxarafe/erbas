@@ -49,8 +49,8 @@ class ArchitectureTests {
         for (var file : files(KNOWLEDGE.resolve(JAVA_SOURCES))) {
             String source = Files.readString(file);
             assertThat(source).as(file.toString()).doesNotContain(WMS_PACKAGE, AI_PACKAGE, ASSETS_PACKAGE,
-                    "@RestController", "@RequestMapping", "DocumentAuthorization", "DocumentVisibilityPolicy", ".admin()");
-            if (file.toString().contains("/domain/"))
+                    "@RestController", "@RequestMapping", ".admin()");
+            if (file.toString().contains("/domain/") || file.toString().contains("/application/"))
                 assertThat(source).doesNotContain("org.springframework", "org.flywaydb", "java.sql", ".infrastructure.");
         }
         assertThat(KNOWLEDGE.resolve(RESOURCES + "/db/knowledge/V9__knowledge_documents.sql")).isRegularFile();

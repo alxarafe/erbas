@@ -33,17 +33,67 @@ this storage adapter. No visibility rules or functional permissions are invented
 ## Security boundary and limits
 
 There is no HTTP endpoint, public document resource, READ capability, AI tool or
-provider integration. Raw storage is not an authorization service. Future callers
-must apply the existing cumulative [document authorization](document-authorization.md)
-before any disclosure, including metadata, and resolve revocation consistency
-before exposing retrieval. This task neither registers default visibility nor
-changes module-owned policy authority. A persisted reference is not evidence
-that access is currently allowed.
+provider integration. Raw storage remains trusted infrastructure, not an
+authorization service. Application consumers use `AuthorizedDocumentReader`;
+it exposes no repository accessor or caller-supplied authorization reference.
+A persisted reference is never evidence that access is currently allowed.
+
+## Authorized internal reads (AI-RAG-001A-2)
+
+`AuthorizedDocumentReader.document(subject, owner, id)` returns the latest
+revision; `revision(subject, owner, id, number)` returns a specific revision.
+Both return the complete immutable revision (content and protected metadata)
+only after authorization. Missing, invalid and denied requests return the same
+empty result, without document identifiers, metadata or denial reasons.
+The expected owner must match persisted ownership. Within an owner, scope
+is enforced by the existing visibility and owner policies, not caller claims.
+
+The application service depends on the narrow `DocumentReadStore` persistence
+port, implemented by the existing JDBC adapter. Reference queries do not load
+content. The service applies CORE's unchanged `DocumentAuthorization` to trusted
+persisted references before content loading and again before returning. Historical
+reads require both current and historical revision permissions and policies, so
+an older permission snapshot cannot bypass a newer restriction. A concurrent
+restrictive append observed after loading also denies the result.
+
+Knowledge composition uses current `UserAdministration` lookup, module state and
+existing functional permission beans. It collects native `DocumentVisibilityPolicy`
+and module-owned `DocumentAccessPolicy` beans. No visibility beans denies all
+reads; multiple visibility authorities must all allow. No permissive production
+visibility or owner policy is supplied. Mandatory missing owner policies deny;
+foreign policies cannot satisfy them. Every read reevaluates current authorities;
+no authorization decisions are cached. Test policies remain under `src/test`.
+
+Returned values are snapshots, not continuing grants. CORE authorities and
+PostgreSQL do not share a lock or transaction: the final authorization check is
+the decision boundary, not an atomic guarantee against concurrent revocation
+after that check. A later disclosure requires a new authorized read. No new
+CORE mechanism, schema, permission or functional module dependency is introduced.
 
 RAG, embeddings, vector search, OCR, PDF processing, relations, UI and LLM calls
 are outside this slice. No dynamic loading or migration removal is supported.
 
 ## Verification
+
+The authorized reader adds 14 unit cases for positive reads, independent
+authority revocation, missing/foreign policies, identifier isolation, current
+and historical restrictions, and revocation/restrictive append during loading.
+Denied initial checks never load content. The real PostgreSQL host test also
+exercises Spring composition, absent production authorities, current/historical
+reads, owner/scope isolation, membership revocation and persisted identity disable.
+
+Focused Docker validation on 2026-11-10 passed 55 selected tests: 14 authorized
+reader, 2 content, 22 existing WMS document authorization, 12 architecture,
+1 CORE migration, 3 host migration compatibility and 1 Knowledge persistence.
+Run `erbas-authorized-read-20261110` ended with `FOCUSED_EXIT=0` and
+`CLEANUP=passed`, using isolated PostgreSQL without published ports. Optional
+Flyway metadata repository probes emitted HTTP 401 warnings; the selected build
+and tests succeeded.
+
+The developer subsequently reported successful complete `./bin/check` validation:
+`RUN_ID=erbas-check-45881-7070-14091`, `RESULT=passed`, `CHECK_EXIT=0`,
+`CLEANUP_EXIT=0`. Local closure of AI-RAG-001A-2 was explicitly authorized after
+that result. Publication and deployment remain separately controlled.
 
 `DocumentContentTests` covers normalization, defensive copies and invalid input.
 `KnowledgePersistenceIT` uses an isolated real PostgreSQL schema and actual host
