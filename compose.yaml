@@ -32,6 +32,7 @@ services:
       ERBAS_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${ERBAS_DB_NAME:-erbas_dev}
       ERBAS_DATASOURCE_USERNAME: ${ERBAS_DB_USER:-erbas}
       ERBAS_DATASOURCE_PASSWORD: ${ERBAS_DB_PASSWORD:-erbas_local_only}
+      ERBAS_KNOWLEDGE_STORAGE_ROOT: /var/lib/erbas/knowledge
       SPRING_PROFILES_ACTIVE: development
       ERBAS_AUTH_BOOTSTRAP_ENABLED: ${ERBAS_AUTH_BOOTSTRAP_ENABLED:-false}
       ERBAS_AUTH_BOOTSTRAP_EMAIL: ${ERBAS_AUTH_BOOTSTRAP_EMAIL:-}
@@ -50,8 +51,11 @@ services:
     ports:
       - "127.0.0.1:${ERBAS_JAVA_PORT:-48080}:8080"
     read_only: true
+    volumes:
+      - knowledge_data:/var/lib/erbas/knowledge
     tmpfs:
       - /tmp
 
 volumes:
   postgres_data:
+  knowledge_data:
