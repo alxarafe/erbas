@@ -5,6 +5,7 @@ See [Assets](assets.md) for the persistent asset resource and lifecycle module.
 | Document | Purpose |
 | --- | --- |
 | [Document storage](knowledge-storage.md) | Knowledge metadata, opaque object storage, local provider, integrity and authorized reads |
+| [Document processing](knowledge-processing.md) | Configurable text/PDF processors, immutable extraction recipes, page provenance and limits |
 | [Resource Runtime](resources.md) | Generic resource registration, validation, CRUD, metadata, adapters and v0.14.0 contextual presentation adoption under review |
 | [Navigation](navigation.md) | Effective localized application tree and identity-bound conditional caching |
 | [AI assistant](ai.md) | AI-001 module, controlled READ capabilities/primitives, typed provenance, deterministic validation adapter and audit |

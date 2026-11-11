@@ -42,6 +42,16 @@
     </build>
     <profiles>
         <profile>
+            <id>knowledge-pdf</id>
+            <activation><property><name>!erbas.knowledge.pdf.exclude</name></property></activation>
+            <dependencies>
+                <dependency>
+                    <groupId>${project.groupId}</groupId>
+                    <artifactId>erbas-knowledge-pdf</artifactId>
+                </dependency>
+            </dependencies>
+        </profile>
+        <profile>
             <id>integration</id>
             <build>
                 <plugins>

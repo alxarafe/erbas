@@ -4,7 +4,8 @@
 descriptor, document models, JDBC storage and V9 migration in `db/knowledge`.
 The host explicitly composes its configuration and Flyway location. Knowledge
 depends only on CORE; CORE, AI, WMS and Assets do not depend on Knowledge.
-No dependency or tool version changes are introduced.
+The optional PDF adapter and V10 extension are described in
+[document processing](knowledge-processing.md).
 
 ## Storage and integrity
 
@@ -16,16 +17,18 @@ No update or deletion service exists. A PostgreSQL trigger rejects revision
 updates and deletes; a unique constraint prevents duplicate revision numbers.
 PostgreSQL stores only structured data: ownership, storage scope, revision IDs,
 content type, provenance, creator, timestamps, authorization metadata and two
-opaque object UUIDs with sizes and SHA-256 digests. Original UTF-8 bytes and
+opaque object UUIDs with sizes and SHA-256 digests. Original bytes and
 normalized UTF-8 text are separate immutable objects outside PostgreSQL.
 The physical provider verifies both digests and sizes; the JDBC adapter also
-checks that normalized bytes match the unchanged normalization algorithm.
+checks strict normalized UTF-8 and page coverage, and compares the historical
+text recipe against the unchanged normalization algorithm.
 Byte arrays are copied at the model boundary.
 
-Only `text/plain` and `text/markdown` with strict UTF-8 are accepted. Normalization
+The built-in text processor accepts `text/plain` and `text/markdown` with strict UTF-8. Normalization
 removes one leading BOM, converts CRLF/CR to LF and applies Unicode NFC.
 Whitespace and Markdown syntax remain intact. The existing rejection of NUL
-is retained. Original content remains byte-for-byte unchanged.
+is retained. Original content remains byte-for-byte unchanged. The optional PDF
+processor extracts a text layer with page provenance, without OCR.
 
 Each revision retains nonempty required permissions and the module-policy flag;
 the document retains its immutable owner through the internal API. These are
@@ -33,11 +36,13 @@ trusted metadata snapshots, never grants. The creator is an opaque attribution
 supplied by trusted composition, not an authenticated principal established by
 this storage adapter. No visibility rules or functional permissions are invented.
 
-AI-RAG-001A-1B deliberately revises V9 directly: no document data is in production
-and the earlier PRs are unmerged. There is no V10, old-V9 compatibility layer or
-content migration. Use a new disposable database for validation. An old V9
-database has a checksum/schema mismatch; never repair it automatically or delete
-a persistent database/volume to make it start.
+Historically, AI-RAG-001A-1B deliberately revised V9 directly while no document
+data was in production and the earlier PRs were unmerged. That slice had no V10,
+old-V9 compatibility layer or content migration. A database from before that
+revision has a V9 checksum/schema mismatch; never repair it automatically or
+delete a persistent database/volume to make it start. The integrated V9 is now
+immutable; document processing upgrades it through V10. Validation continues to
+use disposable databases.
 
 ## Storage contract and local configuration (AI-RAG-001A-1B)
 
@@ -263,8 +268,9 @@ the decision boundary, not an atomic guarantee against concurrent revocation
 after that check. A later disclosure requires a new authorized read. No new
 CORE mechanism, schema, permission or functional module dependency is introduced.
 
-RAG, embeddings, vector search, OCR, PDF processing, relations, UI and LLM calls
-are outside this slice. No dynamic loading or migration removal is supported.
+RAG, embeddings, vector search, OCR, relations, UI and LLM calls remain outside
+this storage API. PDF processing is a separate optional adapter. No dynamic
+loading or migration removal is supported.
 
 ## Verification
 

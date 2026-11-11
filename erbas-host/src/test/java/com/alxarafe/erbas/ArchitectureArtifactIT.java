@@ -39,7 +39,7 @@ class ArchitectureArtifactIT {
             for (var library : List.of(core, wms, ai))
                 assertThat(library.stream().map(entry -> entry.getName())).noneMatch(name -> name.contains("/assets/"));
             assertThat(knowledge.stream().map(entry -> entry.getName()).filter(name -> name.endsWith(".sql")))
-                    .containsExactly("db/knowledge/V9__knowledge_documents.sql");
+                    .containsExactlyInAnyOrder("db/knowledge/V9__knowledge_documents.sql", "db/knowledge/V10__document_processing.sql");
             assertThat(knowledge.stream().map(entry -> entry.getName())).noneMatch(name -> name.contains("Tests") || name.contains("/wms/") || name.contains("/ai/") || name.contains("/assets/"));
             for (var library : List.of(core, wms, ai, assets))
                 assertThat(library.stream().map(entry -> entry.getName())).noneMatch(name -> name.contains("/knowledge/storage/"));
