@@ -15,6 +15,7 @@ import com.alxarafe.erbas.knowledge.storage.application.*;
 import com.alxarafe.erbas.knowledge.storage.domain.DocumentContent;
 import com.alxarafe.erbas.knowledge.storage.domain.DocumentRevision;
 import com.alxarafe.erbas.knowledge.storage.domain.StoredDocument;
+import com.alxarafe.erbas.knowledge.storage.domain.ProcessingDetails;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -23,14 +24,24 @@ import org.springframework.transaction.support.TransactionTemplate;
 public final class JdbcDocumentStore implements DocumentReadStore {
     public static final String DOCUMENTS = "knowledge_documents";
     public static final String REVISIONS = "knowledge_document_revisions";
+    public static final String PROCESSOR_ID = "processor_id";
+    public static final String PROCESSOR_VERSION = "processor_version";
+    public static final String PROCESSOR_OPTIONS = "processor_options";
+    public static final String PAGE_ENDS = "page_ends";
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
     private final DocumentStorage storage;
+    private final ProcessingLimits limits;
 
     public JdbcDocumentStore(JdbcTemplate jdbc, PlatformTransactionManager transactions, DocumentStorage storage) {
+        this(jdbc, transactions, storage, ProcessingLimits.DEFAULT);
+    }
+
+    public JdbcDocumentStore(JdbcTemplate jdbc, PlatformTransactionManager transactions, DocumentStorage storage, ProcessingLimits limits) {
         this.jdbc = jdbc;
         this.transactions = new TransactionTemplate(transactions);
         this.storage = Objects.requireNonNull(storage);
+        this.limits = Objects.requireNonNull(limits);
     }
 
     public DocumentRevision create(String ownerModule, Set<String> permissions, boolean modulePolicyRequired,
@@ -97,6 +108,7 @@ public final class JdbcDocumentStore implements DocumentReadStore {
 
     private DocumentRevision insert(StorageContext context, DocumentReference reference, int number, String provenance,
             String createdBy, DocumentContent content) {
+        limits.validate(content);
         UUID revisionId = UUID.randomUUID();
         UUID documentId = UUID.fromString(reference.id());
         // Publish complete immutable objects before confirming references in PostgreSQL.
@@ -107,8 +119,9 @@ public final class JdbcDocumentStore implements DocumentReadStore {
         jdbc.update(connection -> {
             var statement = connection.prepareStatement("INSERT INTO " + REVISIONS
                     + " (id, document_id, revision_number, provenance, created_by, required_permissions, module_policy_required,"
-                    + " content_type, original_object, original_size, normalized_object, normalized_size, sha256, normalized_sha256)"
-                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    + " content_type, original_object, original_size, normalized_object, normalized_size, sha256, normalized_sha256,"
+                    + PROCESSOR_ID + ", " + PROCESSOR_VERSION + ", " + PROCESSOR_OPTIONS + ", " + PAGE_ENDS + ")"
+                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.setObject(1, revisionId);
             statement.setObject(2, documentId);
             statement.setInt(3, number);
@@ -123,6 +136,10 @@ public final class JdbcDocumentStore implements DocumentReadStore {
             statement.setLong(12, normalized.size());
             statement.setString(13, original.sha256());
             statement.setString(14, normalized.sha256());
+            statement.setString(15, content.processing().processor());
+            statement.setString(16, content.processing().version());
+            statement.setString(17, content.processing().options());
+            statement.setArray(18, connection.createArrayOf("integer", content.processing().pageEnds().toArray(Integer[]::new)));
             return statement;
         });
         return revision(documentId, number).orElseThrow();
@@ -132,19 +149,43 @@ public final class JdbcDocumentStore implements DocumentReadStore {
         UUID documentId = rs.getObject("document_id", UUID.class);
         var context = new StorageContext(rs.getString("owner_module"), rs.getObject("storage_scope", UUID.class));
         byte[] original = read(context, new StoredObject(rs.getObject("original_object", UUID.class),
-                rs.getString("sha256"), rs.getLong("original_size")));
+                rs.getString("sha256"), rs.getLong("original_size")), limits.originalBytes());
         byte[] normalized = read(context, new StoredObject(rs.getObject("normalized_object", UUID.class),
-                rs.getString("normalized_sha256"), rs.getLong("normalized_size")));
-        var content = new DocumentContent(original, rs.getString("content_type"));
-        if (!Arrays.equals(content.text().getBytes(StandardCharsets.UTF_8), normalized))
+                rs.getString("normalized_sha256"), rs.getLong("normalized_size")), limits.normalizedBytes());
+        var pages = rs.getArray(PAGE_ENDS);
+        DocumentContent content;
+        try {
+            String text = StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .decode(java.nio.ByteBuffer.wrap(normalized)).toString();
+            var details = new ProcessingDetails(rs.getString(PROCESSOR_ID), rs.getString(PROCESSOR_VERSION),
+                    rs.getString(PROCESSOR_OPTIONS), Arrays.asList((Integer[]) pages.getArray()));
+            content = DocumentContent.processed(original, rs.getString("content_type"), text, details);
+            // Preserve the existing text integrity check; PDF reads never rerun a potentially changed processor.
+            if (details.equals(ProcessingDetails.TEXT)
+                    && !new DocumentContent(original, content.contentType()).text().equals(text))
+                throw new StorageFailure(StorageFailure.Kind.INTEGRITY);
+            limits.validate(content);
+        } catch (java.nio.charset.CharacterCodingException | IllegalArgumentException | NullPointerException exception) {
             throw new StorageFailure(StorageFailure.Kind.INTEGRITY);
+        } finally { pages.free(); }
         return new DocumentRevision(rs.getObject("id", UUID.class), documentId, rs.getInt("revision_number"),
                 rs.getString("provenance"), rs.getString("created_by"), rs.getTimestamp("created_at").toInstant(),
                 reference(rs), content);
     }
 
-    private byte[] read(StorageContext context, StoredObject object) {
-        var staged = new ByteArrayOutputStream();
+    private byte[] read(StorageContext context, StoredObject object, int maximum) {
+        if (object.size() > maximum) throw new StorageFailure(StorageFailure.Kind.INTEGRITY);
+        var staged = new ByteArrayOutputStream() {
+            @Override public synchronized void write(byte[] bytes, int offset, int length) {
+                if (length > maximum - size()) throw new StorageFailure(StorageFailure.Kind.INTEGRITY);
+                super.write(bytes, offset, length);
+            }
+            @Override public synchronized void write(int value) {
+                if (size() >= maximum) throw new StorageFailure(StorageFailure.Kind.INTEGRITY);
+                super.write(value);
+            }
+        };
         storage.read(context, object, staged);
         return staged.toByteArray();
     }

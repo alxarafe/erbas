@@ -70,6 +70,20 @@ class ArchitectureTests {
     }
 
     @Test
+    void pdfProcessingIsConfinedToAnOptionalKnowledgeAdapter() throws Exception {
+        var pdf = ROOT.resolve("modules/knowledge-pdf");
+        assertThat(dependencies(pdf)).containsExactly("erbas-knowledge", "pdfbox");
+        for (var module : List.of(CORE, WMS, AI, ASSETS, KNOWLEDGE, HOST)) {
+            assertThat(dependencies(module)).doesNotContain("pdfbox", "fontbox", "pdfbox-io");
+            for (var file : files(module.resolve(JAVA_SOURCES)))
+                assertThat(Files.readString(file)).doesNotContain("org.apache.pdfbox");
+        }
+        for (var file : files(pdf.resolve(JAVA_SOURCES)))
+            assertThat(Files.readString(file)).doesNotContain("java.nio.file", "JdbcTemplate", "java.sql", AI_PACKAGE,
+                    "@RestController", "@RequestMapping");
+    }
+
+    @Test
     void coreProductionSourcesAndResourcesHaveNoWmsBusinessKnowledge() throws Exception {
         for (var file : files(CORE.resolve("src/main"))) {
             assertThat(Files.readString(file)).as(file.toString()).doesNotContain(WMS_PACKAGE,

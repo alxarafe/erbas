@@ -25,6 +25,7 @@
     <modules>
         <module>erbas-core</module>
         <module>modules/knowledge</module>
+        <module>modules/knowledge-pdf</module>
         <module>modules/wms</module>
         <module>modules/ai</module>
         <module>modules/assets</module>
@@ -33,6 +34,11 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>erbas-knowledge-pdf</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>erbas-knowledge</artifactId>

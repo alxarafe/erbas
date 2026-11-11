@@ -72,7 +72,7 @@ class KnowledgePersistenceIT {
                 assertThat(jdbc.queryForList("SELECT * FROM erbas_persistence_marker")).isEqualTo(marker);
                 assertThat(jdbc.queryForList("SELECT * FROM " + ASSET_TABLE)).isEqualTo(assets);
                 assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE success AND version IS NOT NULL ORDER BY installed_rank",
-                        String.class)).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
+                        String.class)).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
                 assertThat(host.getBean(Flyway.class).migrate().migrationsExecuted).isZero();
                 // Use the host-composed bean with its real DataSource and transaction manager.
                 exercise(host.getBean(JdbcDocumentStore.class), jdbc, root);
